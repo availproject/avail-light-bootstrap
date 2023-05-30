@@ -191,10 +191,17 @@ async fn run() -> Result<()> {
                 SwarmEvent::Behaviour(BehaviourEvent::Identify(event)) => match event {
                     IdentifyEvent::Received {
                         peer_id,
-                        info: Info { listen_addrs, .. },
+                        info: Info { listen_addrs, protocol_version, .. },
                     } => {
                         debug!("Identity Received from: {peer_id:?} on listen address: {listen_addrs:?}");
-                    }
+
+                        // only keep records of nodes with the same application-specific
+                        // version of the protocol family used by the peer
+                        if protocol_version == cfg.libp2p_identify_protocol {
+                        for addr in listen_addrs {
+                            swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
+                        }
+                    }}
 
                     IdentifyEvent::Sent { peer_id } => {
                         debug!("Identity Sent event to: {peer_id:?}");
