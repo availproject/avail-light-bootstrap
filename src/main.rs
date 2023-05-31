@@ -31,7 +31,7 @@ use tracing_subscriber::{
 use types::{LibP2PConfig, RuntimeConfig, SecretKey};
 
 #[derive(Debug, Parser)]
-#[clap(name = "Avail Relay Server")]
+#[clap(name = "Avail Bootstrap Node")]
 struct CliOpts {
     #[clap(
         long,
@@ -185,7 +185,7 @@ async fn run() -> Result<()> {
         loop {
             match swarm.next().await.expect("Stream to be infinite.") {
                 SwarmEvent::NewListenAddr { address, .. } => {
-                    info!("Relay is listening on {address:?}");
+                    info!("Bootstrap is listening on {address:?}");
                 }
 
                 SwarmEvent::Behaviour(BehaviourEvent::Identify(event)) => match event {
