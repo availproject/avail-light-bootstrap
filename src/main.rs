@@ -177,7 +177,7 @@ async fn run() -> Result<()> {
     // Listen on all interfaces
     let listen_addr = Multiaddr::empty()
         .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
-        .with(Protocol::Udp(cfg.libp2p_port))
+        .with(Protocol::Udp(cfg.p2p_port))
         .with(Protocol::QuicV1);
     swarm.listen_on(listen_addr)?;
 
@@ -197,7 +197,7 @@ async fn run() -> Result<()> {
 
                         // only keep records of nodes with the same application-specific
                         // version of the protocol family used by the peer
-                        if protocol_version == cfg.libp2p_identify_protocol {
+                        if protocol_version == cfg.identify_protocol {
                         for addr in listen_addrs {
                             swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
                         }

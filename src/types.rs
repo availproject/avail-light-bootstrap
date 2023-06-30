@@ -16,21 +16,19 @@ pub struct RuntimeConfig {
     pub log_level: String,
     /// Set to display structured logs in JSON format. Otherwise, plain text format is used. (default: false)
     pub log_format_json: bool,
-    /// Secret key for libp2p keypair. Can be either set to `seed` or to `key`.
+    /// Secret key for used to generate keypair. Can be either set to `seed` or to `key`.
     /// If set to seed, keypair will be generated from that seed.
     /// If set to key, a valid ed25519 private key must be provided, else the client will fail
     /// If `secret_key` is not set, random seed will be used.
     pub secret_key: Option<SecretKey>,
-    /// Sets Libp2p service port. (default: 37000)
-    pub libp2p_port: u16,
-    /// Sets libp2p application-specific version of the protocol family used by the peer. (default: "/avail_kad/id/1.0.0")
-    pub libp2p_identify_protocol: String,
-    /// Sets libp2p agent version that is sent to peers. (default: "avail-light-client/rust-client")
-    pub libp2p_identify_agent: String,
-    /// Configures LibP2P TCP port reuse for local sockets, which implies reuse of listening ports for outgoing connections to enhance NAT traversal capabilities (default: false)
-    pub libp2p_tcp_port_reuse: bool,
-    /// Configures LibP2P AutoNAT behaviour to reject probes as a server for clients that are observed at a non-global ip address (default: false)
-    pub libp2p_autonat_only_global_ips: bool,
+    /// Sets the listening P2P network service port. (default: 37000)
+    pub p2p_port: u16,
+    /// Sets application-specific version of the protocol family used by the peer. (default: "/avail_kad/id/1.0.0")
+    pub identify_protocol: String,
+    /// Sets agent version that is sent to peers in the network. (default: "avail-light-client/rust-client")
+    pub identify_agent: String,
+    /// Configures AutoNAT behaviour to reject probes as a server for clients that are observed at a non-global ip address (default: false)
+    pub autonat_only_global_ips: bool,
 
     /// Kademlia configuration - WARNING: Changing the default values might cause the peer to suffer poor performance!
     /// Default Kademlia config values have been copied from rust-libp2p Kademila defaults
@@ -74,7 +72,6 @@ pub struct RuntimeConfig {
 
 pub struct LibP2PConfig {
     pub port: u16,
-    pub tcp_port_reuse: bool,
     pub autonat_only_global_ips: bool,
     pub identify_agent_version: String,
     pub identify_protocol_version: String,
@@ -84,11 +81,10 @@ pub struct LibP2PConfig {
 impl From<&RuntimeConfig> for LibP2PConfig {
     fn from(rtcfg: &RuntimeConfig) -> Self {
         Self {
-            port: rtcfg.libp2p_port,
-            tcp_port_reuse: rtcfg.libp2p_tcp_port_reuse,
-            autonat_only_global_ips: rtcfg.libp2p_autonat_only_global_ips,
-            identify_agent_version: rtcfg.libp2p_identify_agent.clone(),
-            identify_protocol_version: rtcfg.libp2p_identify_protocol.clone(),
+            port: rtcfg.p2p_port,
+            autonat_only_global_ips: rtcfg.autonat_only_global_ips,
+            identify_agent_version: rtcfg.identify_agent.clone(),
+            identify_protocol_version: rtcfg.identify_protocol.clone(),
             kademlia: rtcfg.into(),
         }
     }
@@ -137,11 +133,10 @@ impl Default for RuntimeConfig {
             log_level: "INFO".to_string(),
             log_format_json: false,
             secret_key: None,
-            libp2p_port: 37000,
-            libp2p_tcp_port_reuse: false,
-            libp2p_autonat_only_global_ips: false,
-            libp2p_identify_protocol: "/avail_kad/id/1.0.0".to_string(),
-            libp2p_identify_agent: "avail-light-client/rust-client".to_string(),
+            p2p_port: 37000,
+            autonat_only_global_ips: false,
+            identify_protocol: "/avail_kad/id/1.0.0".to_string(),
+            identify_agent: "avail-light-client/rust-client".to_string(),
             kad_record_ttl: 24 * 60 * 60,
             replication_factor: 20,
             publication_interval: 12 * 60 * 60,
