@@ -10,11 +10,7 @@ use libp2p::{
     futures::StreamExt,
     identify::{self, Event as IdentifyEvent, Info},
     identity::Keypair,
-    kad::{
-        self,
-        store::{MemoryStore, MemoryStoreConfig},
-        Kademlia, KademliaCaching, KademliaConfig,
-    },
+    kad::{self, store::MemoryStore, Kademlia, KademliaConfig},
     multiaddr::Protocol,
     ping::{self, Config as PingConfig},
     quic::{tokio::Transport as QuicTransport, Config as QuicConfig},
@@ -106,30 +102,14 @@ fn create_swarm(id_keys: Keypair, cfg: LibP2PConfig) -> Swarm<Behaviour> {
     let local_peer_id = PeerId::from(id_keys.public());
     info!("Local peer id: {:?}.", local_peer_id,);
 
-    // configure Kademlia Memory Store
-    let kad_store = MemoryStore::with_config(
-        local_peer_id,
-        MemoryStoreConfig {
-            max_records: cfg.kademlia.max_kad_record_number, // ~2hrs
-            max_value_bytes: cfg.kademlia.max_kad_record_size + 1,
-            max_providers_per_key: usize::from(cfg.kademlia.record_replication_factor), // Needs to match the replication factor, per libp2p docs
-            max_provided_keys: cfg.kademlia.max_kad_provided_keys,
-        },
-    );
+    // create new Kademlia Memory Store
+    let kad_store = MemoryStore::new(local_peer_id);
 
     // create Kademlia Config
     let mut kad_cfg = KademliaConfig::default();
     kad_cfg
-        .set_publication_interval(cfg.kademlia.publication_interval)
-        .set_replication_interval(cfg.kademlia.record_replication_interval)
-        .set_replication_factor(cfg.kademlia.record_replication_factor)
         .set_connection_idle_timeout(cfg.kademlia.connection_idle_timeout)
-        .set_query_timeout(cfg.kademlia.query_timeout)
-        .set_parallelism(cfg.kademlia.query_parallelism)
-        .set_caching(KademliaCaching::Enabled {
-            max_peers: cfg.kademlia.caching_max_peers,
-        })
-        .disjoint_query_paths(cfg.kademlia.disjoint_query_paths);
+        .set_query_timeout(cfg.kademlia.query_timeout);
 
     // create Indetify Protocol Config
     let identify_cfg = identify::Config::new(cfg.identify_protocol_version, id_keys.public())
@@ -177,7 +157,7 @@ async fn run() -> Result<()> {
     // Listen on all interfaces
     let listen_addr = Multiaddr::empty()
         .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
-        .with(Protocol::Udp(cfg.libp2p_port))
+        .with(Protocol::Udp(cfg.p2p_port))
         .with(Protocol::QuicV1);
     swarm.listen_on(listen_addr)?;
 
@@ -197,7 +177,7 @@ async fn run() -> Result<()> {
 
                         // only keep records of nodes with the same application-specific
                         // version of the protocol family used by the peer
-                        if protocol_version == cfg.libp2p_identify_protocol {
+                        if protocol_version == cfg.identify_protocol {
                         for addr in listen_addrs {
                             swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
                         }
