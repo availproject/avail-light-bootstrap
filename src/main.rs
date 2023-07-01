@@ -10,11 +10,7 @@ use libp2p::{
     futures::StreamExt,
     identify::{self, Event as IdentifyEvent, Info},
     identity::Keypair,
-    kad::{
-        self,
-        store::{MemoryStore, MemoryStoreConfig},
-        Kademlia, KademliaCaching, KademliaConfig,
-    },
+    kad::{self, store::MemoryStore, Kademlia, KademliaConfig},
     multiaddr::Protocol,
     ping::{self, Config as PingConfig},
     quic::{tokio::Transport as QuicTransport, Config as QuicConfig},

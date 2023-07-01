@@ -23,7 +23,6 @@ cargo run -- -c config.yaml
 log_level = "info"
 # If set to true, logs are displayed in JSON format, which is used for structured logging. Otherwise, plain text format is used (default: false).
 log_format_json = false
-
 # Secret key used to generate keypair. Can be either set to `seed` or to `key`.
 # If set to seed, keypair will be generated from that seed.
 # If set to key, a valid ed25519 private key must be provided, else the client will fail
