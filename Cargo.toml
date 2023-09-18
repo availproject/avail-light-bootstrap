@@ -17,6 +17,12 @@ tokio = { version = "1.28.1", features = ["sync", "macros", "rt-multi-thread"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["json"] }
 
+# OpenTelemetry
+opentelemetry = "0.20.0"
+opentelemetry-otlp = {version = "0.13.0", features = ["grpc-tonic", "metrics"]}
+opentelemetry_api = { version = "0.20.0", features = ["metrics"] }
+opentelemetry_sdk = { version = "0.20.0", features = ["metrics"] }
+
 [profile.dev]
 panic = "abort"
 
