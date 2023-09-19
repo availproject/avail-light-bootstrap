@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod telemetry;
 mod types;
 
 use anyhow::{Context, Result};
