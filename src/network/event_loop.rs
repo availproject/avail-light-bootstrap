@@ -2,7 +2,6 @@ use anyhow::Result;
 use async_std::stream::StreamExt;
 use libp2p::{
     autonat::Event as AutoNATEvent,
-    futures::channel::oneshot,
     identify::{Event as IdentifyEvent, Info},
     kad::{BootstrapOk, KademliaEvent, QueryId, QueryResult},
     multiaddr::Protocol,
@@ -11,7 +10,7 @@ use libp2p::{
 };
 use std::{collections::HashMap, time::Duration};
 use tokio::{
-    sync::mpsc,
+    sync::{mpsc, oneshot},
     time::{interval_at, Instant, Interval},
 };
 use tracing::{debug, trace};
@@ -189,7 +188,43 @@ impl EventLoop {
         }
     }
 
-    async fn handle_command(&mut self, command: Command) {}
+    async fn handle_command(&mut self, command: Command) {
+        match command {
+            Command::StartListening {
+                addr,
+                response_sender,
+            } => {
+                _ = match self.swarm.listen_on(addr) {
+                    Ok(_) => response_sender.send(Ok(())),
+                    Err(err) => response_sender.send(Err(err.into())),
+                }
+            }
+            Command::AddAddress {
+                peer_id,
+                peer_addr,
+                response_sender,
+            } => {
+                self.swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, peer_addr);
+                self.pending_kad_routing.insert(peer_id, response_sender);
+            }
+            Command::Bootstrap { response_sender } => {
+                match self.swarm.behaviour_mut().kademlia.bootstrap() {
+                    Ok(query_id) => {
+                        self.pending_kad_queries
+                            .insert(query_id, QueryChannel::Bootstrap(response_sender));
+                    }
+                    // no available peers for bootstrap
+                    // send error immediately through response channel
+                    Err(err) => {
+                        response_sender.send(Err(err.into()));
+                    }
+                }
+            }
+        }
+    }
 
     fn handle_periodic_bootstraps(mut self) {}
 }

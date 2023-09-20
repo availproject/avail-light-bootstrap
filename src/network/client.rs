@@ -71,5 +71,4 @@ pub enum Command {
     Bootstrap {
         response_sender: oneshot::Sender<Result<()>>,
     },
-    NetworkObservabilityDump,
 }
