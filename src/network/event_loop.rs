@@ -1,8 +1,12 @@
 use anyhow::Result;
 use async_std::stream::StreamExt;
 use libp2p::{
+    autonat::Event as AutoNATEvent,
     futures::channel::oneshot,
-    swarm::{derive_prelude::Either, SwarmEvent},
+    identify::{Event as IdentifyEvent, Info},
+    kad::{BootstrapOk, KademliaEvent, QueryId, QueryResult},
+    multiaddr::Protocol,
+    swarm::{derive_prelude::Either, ConnectionError, SwarmEvent},
     PeerId, Swarm,
 };
 use std::{collections::HashMap, time::Duration};
@@ -10,8 +14,13 @@ use tokio::{
     sync::mpsc,
     time::{interval_at, Instant, Interval},
 };
+use tracing::{debug, trace};
 
 use super::{client::Command, Behaviour, BehaviourEvent};
+
+enum QueryChannel {
+    Bootstrap(oneshot::Sender<Result<()>>),
+}
 
 // BootstrapState keeps track of all things bootstrap related
 struct BootstrapState {
@@ -25,6 +34,7 @@ struct BootstrapState {
 pub struct EventLoop {
     swarm: Swarm<Behaviour>,
     command_receiver: mpsc::Receiver<Command>,
+    pending_kad_queries: HashMap<QueryId, QueryChannel>,
     pending_kad_routing: HashMap<PeerId, oneshot::Sender<Result<()>>>,
     bootstrap: BootstrapState,
 }
@@ -42,6 +52,7 @@ impl EventLoop {
         Self {
             swarm,
             command_receiver,
+            pending_kad_queries: Default::default(),
             pending_kad_routing: Default::default(),
             bootstrap: BootstrapState {
                 is_startup_done: false,
@@ -65,7 +76,118 @@ impl EventLoop {
         }
     }
 
-    async fn handle_event(&mut self, event: SwarmEvent<BehaviourEvent, StreamError>) {}
+    async fn handle_event(&mut self, event: SwarmEvent<BehaviourEvent, StreamError>) {
+        match event {
+            SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad_event)) => match kad_event {
+                KademliaEvent::RoutingUpdated {
+                    peer,
+                    is_new_peer,
+                    addresses,
+                    old_peer,
+                    ..
+                } => {
+                    debug!("Routing updated. Peer: {peer:?}. Is new Peer: {is_new_peer:?}. Addresses: {addresses:#?}. Old Peer: {old_peer:#?}");
+                    if let Some(res_sender) = self.pending_kad_routing.remove(&peer) {
+                        _ = res_sender.send(Ok(()))
+                    }
+                }
+
+                KademliaEvent::OutboundQueryProgressed { id, result, .. } => match result {
+                    QueryResult::Bootstrap(bootstrap_result) => match bootstrap_result {
+                        Ok(BootstrapOk {
+                            peer,
+                            num_remaining,
+                        }) => {
+                            trace!("BootstrapOK event. PeerID: {peer:?}. Num remaining: {num_remaining:?}.");
+                            if num_remaining == 0 {
+                                if let Some(QueryChannel::Bootstrap(ch)) =
+                                    self.pending_kad_queries.remove(&id)
+                                {
+                                    _ = ch.send(Ok(()));
+                                    // we can say that the initial bootstrap at initialization is done
+                                    self.bootstrap.is_startup_done = true;
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            trace!("Bootstrap error event. Error: {err:?}.");
+                            if let Some(QueryChannel::Bootstrap(ch)) =
+                                self.pending_kad_queries.remove(&id)
+                            {
+                                _ = ch.send(Err(err.into()));
+                            }
+                        }
+                    },
+                    _ => {}
+                },
+                _ => {}
+            },
+            SwarmEvent::Behaviour(BehaviourEvent::Identify(identify_event)) => {
+                match identify_event {
+                    IdentifyEvent::Received {
+                        peer_id,
+                        info: Info { listen_addrs, .. },
+                    } => {
+                        debug!("Identity received from: {peer_id:?} on listen address: {listen_addrs:?}");
+                        // interested in addresses with actual Multiaddresses
+                        // containing proper 'p2p' protocol tag
+                        listen_addrs
+                            .iter()
+                            .filter(|a| a.to_string().contains(Protocol::P2p(peer_id).tag()))
+                            .for_each(|a| {
+                                self.swarm
+                                    .behaviour_mut()
+                                    .kademlia
+                                    .add_address(&peer_id, a.clone());
+                            });
+                    }
+                    _ => {}
+                }
+            }
+            SwarmEvent::Behaviour(BehaviourEvent::AutoNat(autoNat_event)) => match autoNat_event {
+                AutoNATEvent::InboundProbe(e) => {
+                    debug!("AutoNAT Inbound Probe: {:#?}", e);
+                }
+                AutoNATEvent::OutboundProbe(e) => {
+                    debug!("AutoNAT Outbound Probe: {:#?}", e);
+                }
+                AutoNATEvent::StatusChanged { old, new } => {
+                    debug!(
+                        "AutoNAT Old status: {:#?}. AutoNAT New status: {:#?}",
+                        old, new
+                    );
+                }
+            },
+            SwarmEvent::ConnectionClosed {
+                peer_id,
+                endpoint,
+                num_established,
+                cause,
+                ..
+            } => {
+                trace!("Connection closed. PeerID: {peer_id:?}. Address: {:?}. Num established: {num_established:?}. Cause: {cause:?}.", endpoint.get_remote_address());
+                if let Some(cause) = cause {
+                    match cause {
+                        // remove peers with failed connections
+                        ConnectionError::IO(_) | ConnectionError::Handler(_) => {
+                            self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
+                        } // ignore Keep Alive timeout errors
+                        // allow redials for this type of error
+                        _ => {}
+                    }
+                }
+            }
+            SwarmEvent::OutgoingConnectionError { peer_id, .. } => {
+                // what error it was, all current ones are pretty critical
+                // remove error producing peer from further dialing
+                if let Some(peer_id) = peer_id {
+                    trace!("Error produced by peer with PeerId: {peer_id:?}");
+                    self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
+                }
+            }
+            _ => {}
+        }
+    }
 
     async fn handle_command(&mut self, command: Command) {}
 
