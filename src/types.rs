@@ -42,6 +42,7 @@ pub struct LibP2PConfig {
     pub identify_agent_version: String,
     pub identify_protocol_version: String,
     pub kademlia: KademliaConfig,
+    pub secret_key: Option<SecretKey>,
 }
 
 impl From<&RuntimeConfig> for LibP2PConfig {
@@ -52,6 +53,7 @@ impl From<&RuntimeConfig> for LibP2PConfig {
             identify_agent_version: rtcfg.identify_agent.clone(),
             identify_protocol_version: rtcfg.identify_protocol.clone(),
             kademlia: rtcfg.into(),
+            secret_key: rtcfg.secret_key,
         }
     }
 }
