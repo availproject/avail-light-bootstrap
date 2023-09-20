@@ -16,7 +16,7 @@ impl Metrics {
     fn attributes(&self) -> [KeyValue; 6] {
         [
             KeyValue::new("job", "avail_light_bootstrap"),
-            KeyValue::new("version", env!("CARGO_PKG_VERSION")),
+            KeyValue::new("version", clap::crate_version!()),
             KeyValue::new("role", self.role.clone()),
             KeyValue::new("peerID", self.multiaddress.read().unwrap().clone()),
             KeyValue::new("multiaddress", self.multiaddress.read().unwrap().clone()),
