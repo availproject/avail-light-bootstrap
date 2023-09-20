@@ -1,7 +1,7 @@
 mod client;
 mod event_loop;
 
-use anyhow::{Ok, Result};
+use anyhow::{Context, Ok, Result};
 use libp2p::{
     autonat::{Behaviour as AutoNAT, Config as AutoNATConfig},
     core::muxing::StreamMuxerBox,
@@ -14,6 +14,7 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmBuilder},
     PeerId, Transport,
 };
+use multihash::Hasher;
 use tokio::sync::mpsc;
 
 use event_loop::EventLoop;
@@ -21,7 +22,7 @@ use tracing::info;
 
 use crate::{
     network::client::{Client, Command},
-    types::LibP2PConfig,
+    types::{LibP2PConfig, SecretKey},
 };
 
 #[derive(NetworkBehaviour)]
@@ -81,4 +82,27 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
         Client::new(command_sender),
         EventLoop::new(swarm, command_receiver),
     ))
+}
+
+pub fn keypair(cfg: LibP2PConfig) -> Result<(Keypair, String)> {
+    let keypair = match cfg.secret_key {
+        // if seed is provided, generate secret key from seed
+        Some(SecretKey::Seed { seed }) => {
+            let digest = multihash::Sha3_256::digest(seed.as_bytes());
+            Keypair::ed25519_from_bytes(digest).context("Error generating secret key from seed")?
+        }
+        // import secret key, if provided
+        Some(SecretKey::Key { key }) => {
+            let mut decoded_key = [0u8; 32];
+            hex::decode_to_slice(key.into_bytes(), &mut decoded_key)
+                .context("Error decoding secret key from config.")?;
+            Keypair::ed25519_from_bytes(decoded_key).context("Error importing secret key.")?
+        }
+        // if neither seed nor secret key were provided,
+        // generate secret key from random seed
+        None => Keypair::generate_ed25519(),
+    };
+
+    let peer_id = PeerId::from(keypair.public()).to_string();
+    Ok((keypair, peer_id))
 }
