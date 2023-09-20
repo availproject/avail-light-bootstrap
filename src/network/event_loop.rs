@@ -70,7 +70,7 @@ impl EventLoop {
                     // shutting down whole network event loop
                     None => return,
                 },
-                // _ = self.bootstrap.timer.tick() => self.handle_periodic_bootstraps(),
+                _ = self.bootstrap.timer.tick() => self.handle_periodic_bootstraps(),
             }
         }
     }
@@ -226,5 +226,10 @@ impl EventLoop {
         }
     }
 
-    fn handle_periodic_bootstraps(mut self) {}
+    fn handle_periodic_bootstraps(&mut self) {
+        // periodic bootstraps should only start after the initial one is done
+        if self.bootstrap.is_startup_done {
+            _ = self.swarm.behaviour_mut().kademlia.bootstrap();
+        }
+    }
 }
