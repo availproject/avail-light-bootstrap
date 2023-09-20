@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod network;
 mod telemetry;
 mod types;
 
@@ -93,7 +94,6 @@ fn generate_id_keys(secret_key: Option<SecretKey>) -> Result<Keypair> {
 
 fn build_transport(id_keys: Keypair) -> Boxed<(PeerId, StreamMuxerBox)> {
     let mut quic_config = QuicConfig::new(&id_keys);
-    quic_config.support_draft_29 = true;
     QuicTransport::new(quic_config)
         .map(|(peer_id, muxer), _| (peer_id, StreamMuxerBox::new(muxer)))
         .boxed()
