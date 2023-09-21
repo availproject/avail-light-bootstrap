@@ -143,7 +143,7 @@ impl EventLoop {
                     _ => {}
                 }
             }
-            SwarmEvent::Behaviour(BehaviourEvent::AutoNat(autoNat_event)) => match autoNat_event {
+            SwarmEvent::Behaviour(BehaviourEvent::AutoNat(autonat_event)) => match autonat_event {
                 AutoNATEvent::InboundProbe(e) => {
                     debug!("AutoNAT Inbound Probe: {:#?}", e);
                 }
@@ -219,7 +219,7 @@ impl EventLoop {
                     // no available peers for bootstrap
                     // send error immediately through response channel
                     Err(err) => {
-                        response_sender.send(Err(err.into()));
+                        _ = response_sender.send(Err(err.into()));
                     }
                 }
             }
