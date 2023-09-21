@@ -1,7 +1,7 @@
 mod client;
 mod event_loop;
 
-use anyhow::{Context, Ok, Result};
+use anyhow::{Context, Result};
 use libp2p::{
     autonat::{Behaviour as AutoNAT, Config as AutoNATConfig},
     core::muxing::StreamMuxerBox,
@@ -80,7 +80,7 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
 
     Ok((
         Client::new(command_sender),
-        EventLoop::new(swarm, command_receiver),
+        EventLoop::new(swarm, command_receiver, cfg.bootstrap_interval),
     ))
 }
 
