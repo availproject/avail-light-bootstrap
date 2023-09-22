@@ -3,7 +3,7 @@ use libp2p::{
     autonat::Event as AutoNATEvent,
     futures::StreamExt,
     identify::{Event as IdentifyEvent, Info},
-    kad::{BootstrapOk, KademliaEvent, QueryId, QueryResult},
+    kad::{Addresses, BootstrapOk, EntryView, KBucketKey, KademliaEvent, QueryId, QueryResult},
     multiaddr::Protocol,
     swarm::{derive_prelude::Either, ConnectionError, SwarmEvent},
     PeerId, Swarm,
@@ -240,18 +240,21 @@ impl EventLoop {
                     }
                 }
             }
-            Command::CountDHTPeers { response_sender } => {
-                let mut total_peers: usize = 0;
-                for bucket in self.swarm.behaviour_mut().kademlia.kbuckets() {
-                    total_peers += bucket.num_entries();
-                }
-                _ = response_sender.send(total_peers);
-            }
             Command::WaitIncomingConnection { response_sender } => {
                 self.pending_swarm_events.insert(
                     self.swarm.local_peer_id().to_owned(),
                     SwarmChannel::ConnectionEstablished(response_sender),
                 );
+            }
+            Command::GetDHTEntries { response_sender } => {
+                let mut entries: Vec<EntryView<KBucketKey<PeerId>, Addresses>> = Vec::new();
+                let kbuckets = self.swarm.behaviour_mut().kademlia.kbuckets();
+                for bucket in kbuckets {
+                    for entry in bucket.iter().map(|r| r.to_owned()) {
+                        entries.push(entry);
+                    }
+                }
+                _ = response_sender.send(entries);
             }
         }
     }
