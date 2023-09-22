@@ -9,10 +9,11 @@ use libp2p::{
     identify::{Behaviour as Identify, Config as IdentifyConfig},
     identity::Keypair,
     kad::{store::MemoryStore, Kademlia, KademliaConfig},
+    multiaddr::Protocol,
     ping::{Behaviour as Ping, Config as PingConfig},
     quic::{tokio::Transport as TokioQuic, Config as QuicConfig},
     swarm::{NetworkBehaviour, SwarmBuilder},
-    PeerId, Transport,
+    Multiaddr, PeerId, Transport,
 };
 use multihash::Hasher;
 use tokio::sync::mpsc;
@@ -105,4 +106,15 @@ pub fn keypair(cfg: LibP2PConfig) -> Result<(Keypair, String)> {
 
     let peer_id = PeerId::from(keypair.public()).to_string();
     Ok((keypair, peer_id))
+}
+
+pub fn extract_ip(multiaddress: Multiaddr) -> Option<String> {
+    for protocol in &multiaddress {
+        match protocol {
+            Protocol::Ip4(ip) => return Some(ip.to_string()),
+            Protocol::Ip6(ip) => return Some(ip.to_string()),
+            _ => continue,
+        }
+    }
+    None
 }
