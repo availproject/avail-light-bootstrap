@@ -68,7 +68,7 @@ async fn run() -> Result<()> {
         warn!("Using default log level: {err}");
     }
 
-    let (id_keys, peer_id) = network::keypair((&cfg).into())?;
+    let (id_keys, _) = network::keypair((&cfg).into())?;
 
     let (network_client, network_event_loop) = network::init((&cfg).into(), id_keys)
         .context("Failed to initialize P2P Network Service.")?;
@@ -88,6 +88,8 @@ async fn run() -> Result<()> {
         .context("Listening on UDP not to fail.")?;
 
     info!("Bootstrap node starting ...");
+    network_client.bootstrap().await?;
+
     Ok(())
 }
 

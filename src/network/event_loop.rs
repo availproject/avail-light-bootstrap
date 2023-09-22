@@ -1,7 +1,7 @@
 use anyhow::Result;
-use async_std::stream::StreamExt;
 use libp2p::{
     autonat::Event as AutoNATEvent,
+    futures::StreamExt,
     identify::{Event as IdentifyEvent, Info},
     kad::{BootstrapOk, KademliaEvent, QueryId, QueryResult},
     multiaddr::Protocol,
@@ -13,12 +13,16 @@ use tokio::{
     sync::{mpsc, oneshot},
     time::{interval_at, Instant, Interval},
 };
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 
 use super::{client::Command, Behaviour, BehaviourEvent};
 
 enum QueryChannel {
     Bootstrap(oneshot::Sender<Result<()>>),
+}
+
+enum SwarmChannel {
+    ConnectionEstablished(oneshot::Sender<()>),
 }
 
 // BootstrapState keeps track of all things bootstrap related
@@ -35,6 +39,7 @@ pub struct EventLoop {
     command_receiver: mpsc::Receiver<Command>,
     pending_kad_queries: HashMap<QueryId, QueryChannel>,
     pending_kad_routing: HashMap<PeerId, oneshot::Sender<Result<()>>>,
+    pending_swarm_events: HashMap<PeerId, SwarmChannel>,
     bootstrap: BootstrapState,
 }
 
@@ -53,6 +58,7 @@ impl EventLoop {
             command_receiver,
             pending_kad_queries: Default::default(),
             pending_kad_routing: Default::default(),
+            pending_swarm_events: Default::default(),
             bootstrap: BootstrapState {
                 is_startup_done: false,
                 timer: interval_at(Instant::now() + bootstrap_interval, bootstrap_interval),
@@ -177,12 +183,34 @@ impl EventLoop {
                 }
             }
             SwarmEvent::OutgoingConnectionError { peer_id, .. } => {
-                // what error it was, all current ones are pretty critical
+                // which ever error that was,
+                // all the currently implemented ones are pretty critical
                 // remove error producing peer from further dialing
                 if let Some(peer_id) = peer_id {
                     trace!("Error produced by peer with PeerId: {peer_id:?}");
                     self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
                 }
+            }
+            SwarmEvent::ConnectionEstablished { endpoint, .. } => {
+                // in case that we're listener,
+                // wait for a first successful connection
+                if endpoint.is_listener() {
+                    // check if there is a command waiting for a response
+                    let local_peer_id = self.swarm.local_peer_id();
+                    if let Some(SwarmChannel::ConnectionEstablished(ch)) =
+                        self.pending_swarm_events.remove(local_peer_id)
+                    {
+                        // signal back that we have successfully established a connection
+                        _ = ch.send(());
+                    }
+                }
+            }
+            SwarmEvent::NewListenAddr { address, .. } => {
+                let local_peer_id = *self.swarm.local_peer_id();
+                info!(
+                    "Local node is listening on: {:?}",
+                    address.with(Protocol::P2p(local_peer_id))
+                )
             }
             _ => {}
         }
@@ -199,17 +227,6 @@ impl EventLoop {
                     Err(err) => response_sender.send(Err(err.into())),
                 }
             }
-            Command::AddAddress {
-                peer_id,
-                peer_addr,
-                response_sender,
-            } => {
-                self.swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .add_address(&peer_id, peer_addr);
-                self.pending_kad_routing.insert(peer_id, response_sender);
-            }
             Command::Bootstrap { response_sender } => {
                 match self.swarm.behaviour_mut().kademlia.bootstrap() {
                     Ok(query_id) => {
@@ -222,6 +239,19 @@ impl EventLoop {
                         _ = response_sender.send(Err(err.into()));
                     }
                 }
+            }
+            Command::CountDHTPeers { response_sender } => {
+                let mut total_peers: usize = 0;
+                for bucket in self.swarm.behaviour_mut().kademlia.kbuckets() {
+                    total_peers += bucket.num_entries();
+                }
+                _ = response_sender.send(total_peers);
+            }
+            Command::WaitIncomingConnection { response_sender } => {
+                self.pending_swarm_events.insert(
+                    self.swarm.local_peer_id().to_owned(),
+                    SwarmChannel::ConnectionEstablished(response_sender),
+                );
             }
         }
     }

@@ -1,5 +1,5 @@
 use anyhow::{Context, Error, Result};
-use libp2p::{Multiaddr, PeerId};
+use libp2p::Multiaddr;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
@@ -26,34 +26,43 @@ impl Client {
             .context("Sender not to be dropped")?
     }
 
-    pub async fn add_address(&self, peer_id: PeerId, peer_addr: Multiaddr) -> Result<(), Error> {
-        let (response_sender, response_receiver) = oneshot::channel();
+    pub async fn bootstrap(&self) -> Result<(), Error> {
+        // bootstrapping is impossible on an empty DHT table
+        // at least one node is required to be known, so check
+        let (count_res_sender, count_res_receiver) = oneshot::channel();
         self.command_sender
-            .send(Command::AddAddress {
-                peer_id,
-                peer_addr,
-                response_sender,
+            .send(Command::CountDHTPeers {
+                response_sender: count_res_sender,
             })
             .await
-            .context("Command receiver should not be dropped.")?;
-        response_receiver
-            .await
-            .context("Sender not to be dropped.")?
-    }
+            .context("Command receiver should not be dropped while counting dht peers.")?;
 
-    pub async fn bootstrap(&self, nodes: Vec<(PeerId, Multiaddr)>) -> Result<(), Error> {
-        for (peer, addr) in nodes {
-            self.add_address(peer, addr).await?;
+        let counted_peers = count_res_receiver.await?;
+        // for a bootstrap to succeed, we need at least 1 peer in our DHT
+        if counted_peers < 1 {
+            // we'll have to wait, until some one successfully connects us
+            let (connection_res_sender, connection_res_receiver) = oneshot::channel();
+            self.command_sender
+                .send(Command::WaitIncomingConnection {
+                    response_sender: connection_res_sender,
+                })
+                .await
+                .context("Command receiver should not be dropped while waiting on connection.")?;
+            // wait here
+            _ = connection_res_receiver.await?;
         }
 
-        let (response_sender, response_receiver) = oneshot::channel();
+        // proceed to bootstrap only if connected with someone
+        let (boot_res_sender, boot_res_receiver) = oneshot::channel();
         self.command_sender
-            .send(Command::Bootstrap { response_sender })
+            .send(Command::Bootstrap {
+                response_sender: boot_res_sender,
+            })
             .await
-            .context("Command receiver should not be dropped.")?;
-        response_receiver
+            .context("Command receiver should not be dropped while bootstrapping.")?;
+        boot_res_receiver
             .await
-            .context("Sender not to be dropped.")?
+            .context("Sender not to be dropped while bootstrapping.")?
     }
 }
 
@@ -63,12 +72,13 @@ pub enum Command {
         addr: Multiaddr,
         response_sender: oneshot::Sender<Result<()>>,
     },
-    AddAddress {
-        peer_id: PeerId,
-        peer_addr: Multiaddr,
-        response_sender: oneshot::Sender<Result<()>>,
-    },
     Bootstrap {
         response_sender: oneshot::Sender<Result<()>>,
+    },
+    CountDHTPeers {
+        response_sender: oneshot::Sender<usize>,
+    },
+    WaitIncomingConnection {
+        response_sender: oneshot::Sender<()>,
     },
 }
