@@ -37,7 +37,6 @@ pub struct EventLoop {
     swarm: Swarm<Behaviour>,
     command_receiver: mpsc::Receiver<Command>,
     pending_kad_queries: HashMap<QueryId, QueryChannel>,
-    pending_kad_routing: HashMap<PeerId, oneshot::Sender<Result<()>>>,
     pending_swarm_events: HashMap<PeerId, SwarmChannel>,
     bootstrap: BootstrapState,
 }
@@ -56,7 +55,6 @@ impl EventLoop {
             swarm,
             command_receiver,
             pending_kad_queries: Default::default(),
-            pending_kad_routing: Default::default(),
             pending_swarm_events: Default::default(),
             bootstrap: BootstrapState {
                 is_startup_done: false,
@@ -91,9 +89,6 @@ impl EventLoop {
                     ..
                 } => {
                     debug!("Routing updated. Peer: {peer:?}. Is new Peer: {is_new_peer:?}. Addresses: {addresses:#?}. Old Peer: {old_peer:#?}");
-                    if let Some(res_sender) = self.pending_kad_routing.remove(&peer) {
-                        _ = res_sender.send(Ok(()))
-                    }
                 }
 
                 KademliaEvent::OutboundQueryProgressed { id, result, .. } => match result {
