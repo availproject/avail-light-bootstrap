@@ -1,8 +1,5 @@
-use anyhow::{Context, Error, Result};
-use libp2p::{
-    kad::{Addresses, EntryView, KBucketKey},
-    Multiaddr, PeerId,
-};
+use anyhow::{Context, Result};
+use libp2p::Multiaddr;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
@@ -15,7 +12,7 @@ impl Client {
         Self { command_sender }
     }
 
-    pub async fn start_listening(&self, addr: Multiaddr) -> Result<(), Error> {
+    pub async fn start_listening(&self, addr: Multiaddr) -> Result<()> {
         let (response_sender, response_receiver) = oneshot::channel();
         self.command_sender
             .send(Command::StartListening {
@@ -29,18 +26,10 @@ impl Client {
             .context("Sender not to be dropped")?
     }
 
-    pub async fn bootstrap(&self) -> Result<(), Error> {
+    pub async fn bootstrap(&self) -> Result<()> {
         // bootstrapping is impossible on an empty DHT table
         // at least one node is required to be known, so check
-        let (count_res_sender, count_res_receiver) = oneshot::channel();
-        self.command_sender
-            .send(Command::GetDHTEntries {
-                response_sender: count_res_sender,
-            })
-            .await
-            .context("Command receiver should not be dropped while counting dht peers.")?;
-
-        let counted_peers = count_res_receiver.await?.len();
+        let counted_peers = self.count_dht_entries().await?;
         // for a bootstrap to succeed, we need at least 1 peer in our DHT
         if counted_peers < 1 {
             // we'll have to wait, until some one successfully connects us
@@ -68,13 +57,24 @@ impl Client {
             .context("Sender not to be dropped while bootstrapping.")?
     }
 
-    pub async fn get_dht_entries(&self) -> Result<Vec<EntryView<KBucketKey<PeerId>, Addresses>>> {
+    pub async fn count_dht_entries(&self) -> Result<usize> {
         let (response_sender, response_receiver) = oneshot::channel();
         self.command_sender
-            .send(Command::GetDHTEntries { response_sender })
+            .send(Command::CountDHTPeers { response_sender })
             .await
             .context("Command receiver not to be dropped.")?;
         response_receiver.await.context("Sender not to be dropped.")
+    }
+
+    pub async fn get_multiaddress(&self) -> Result<Option<Multiaddr>> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::GetMultiaddress { response_sender })
+            .await
+            .context("Command receiver not to be dropped.")?;
+        Ok(response_receiver
+            .await
+            .context("Sender not to be dropped.")?)
     }
 }
 
@@ -90,7 +90,10 @@ pub enum Command {
     WaitIncomingConnection {
         response_sender: oneshot::Sender<()>,
     },
-    GetDHTEntries {
-        response_sender: oneshot::Sender<Vec<EntryView<KBucketKey<PeerId>, Addresses>>>,
+    CountDHTPeers {
+        response_sender: oneshot::Sender<usize>,
+    },
+    GetMultiaddress {
+        response_sender: oneshot::Sender<Option<Multiaddr>>,
     },
 }
