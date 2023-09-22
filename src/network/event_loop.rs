@@ -1,3 +1,4 @@
+use super::{client::Command, Behaviour, BehaviourEvent};
 use anyhow::Result;
 use libp2p::{
     autonat::Event as AutoNATEvent,
@@ -14,8 +15,6 @@ use tokio::{
     time::{interval_at, Instant, Interval},
 };
 use tracing::{debug, info, trace};
-
-use super::{client::Command, Behaviour, BehaviourEvent};
 
 enum QueryChannel {
     Bootstrap(oneshot::Sender<Result<()>>),
