@@ -86,6 +86,7 @@ async fn run() -> Result<()> {
         )
         .await
         .context("Listening on UDP not to fail.")?;
+    info!("Started listening on port: {:?}.", cfg.p2p_port);
 
     info!("Bootstrap node starting ...");
     network_client.bootstrap().await?;
