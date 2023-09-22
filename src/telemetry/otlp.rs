@@ -1,17 +1,16 @@
 use anyhow::{Error, Ok, Result};
 use async_trait::async_trait;
-use libp2p::Multiaddr;
 use opentelemetry_api::{global, metrics::Meter, KeyValue};
 use opentelemetry_otlp::{ExportConfig, Protocol, WithExportConfig};
 use std::time::Duration;
 use tokio::sync::RwLock;
 
 pub struct Metrics {
-    pub meter: Meter,
-    pub peer_id: String,
-    pub multiaddress: RwLock<String>,
-    pub ip: RwLock<String>,
-    pub role: String,
+    meter: Meter,
+    peer_id: String,
+    multiaddress: RwLock<String>,
+    ip: RwLock<String>,
+    role: String,
 }
 
 impl Metrics {
@@ -20,7 +19,7 @@ impl Metrics {
             KeyValue::new("job", "avail_light_bootstrap"),
             KeyValue::new("version", clap::crate_version!()),
             KeyValue::new("role", self.role.clone()),
-            KeyValue::new("peerID", self.multiaddress.read().await.clone()),
+            KeyValue::new("peerID", self.peer_id.clone()),
             KeyValue::new("multiaddress", self.multiaddress.read().await.clone()),
             KeyValue::new("ip", self.ip.read().await.clone()),
         ]
@@ -36,9 +35,9 @@ impl Metrics {
         Ok(())
     }
 
-    async fn set_multiaddress(&self, multiaddr: Multiaddr) {
+    async fn set_multiaddress(&self, multiaddr: String) {
         let mut m = self.multiaddress.write().await;
-        *m = multiaddr.to_string();
+        *m = multiaddr;
     }
 
     async fn set_ip(&self, ip: String) {
@@ -52,10 +51,18 @@ impl super::Metrics for Metrics {
     async fn record(&self, value: super::MetricValue) -> Result<()> {
         match value {
             super::MetricValue::ActivePeers(num) => {
-                self.record_u64("active_peers", num.into()).await?;
+                self.record_u64("active_peers", num as u64).await?;
             }
         }
         Ok(())
+    }
+
+    async fn set_multiaddress(&self, multiaddr: String) {
+        self.set_multiaddress(multiaddr).await;
+    }
+
+    async fn set_ip(&self, ip: String) {
+        self.set_ip(ip).await;
     }
 }
 
