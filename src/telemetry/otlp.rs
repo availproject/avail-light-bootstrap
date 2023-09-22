@@ -1,8 +1,10 @@
-use std::{sync::RwLock, time::Duration};
-
 use anyhow::{Error, Ok, Result};
+use async_trait::async_trait;
+use libp2p::Multiaddr;
 use opentelemetry_api::{global, metrics::Meter, KeyValue};
 use opentelemetry_otlp::{ExportConfig, Protocol, WithExportConfig};
+use std::time::Duration;
+use tokio::sync::RwLock;
 
 pub struct Metrics {
     pub meter: Meter,
@@ -13,33 +15,44 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    fn attributes(&self) -> [KeyValue; 6] {
+    async fn attributes(&self) -> [KeyValue; 6] {
         [
             KeyValue::new("job", "avail_light_bootstrap"),
             KeyValue::new("version", clap::crate_version!()),
             KeyValue::new("role", self.role.clone()),
-            KeyValue::new("peerID", self.multiaddress.read().unwrap().clone()),
-            KeyValue::new("multiaddress", self.multiaddress.read().unwrap().clone()),
-            KeyValue::new("ip", self.ip.read().unwrap().clone()),
+            KeyValue::new("peerID", self.multiaddress.read().await.clone()),
+            KeyValue::new("multiaddress", self.multiaddress.read().await.clone()),
+            KeyValue::new("ip", self.ip.read().await.clone()),
         ]
     }
 
-    fn record_u64(&self, name: &'static str, value: u64) -> Result<()> {
+    async fn record_u64(&self, name: &'static str, value: u64) -> Result<()> {
         let instrument = self.meter.u64_observable_gauge(name).try_init()?;
-        let attributes = self.attributes();
+        let attributes = self.attributes().await;
         self.meter
             .register_callback(&[instrument.as_any()], move |observer| {
                 observer.observe_u64(&instrument, value, &attributes)
             })?;
         Ok(())
     }
+
+    async fn set_multiaddress(&self, multiaddr: Multiaddr) {
+        let mut m = self.multiaddress.write().await;
+        *m = multiaddr.to_string();
+    }
+
+    async fn set_ip(&self, ip: String) {
+        let mut i = self.ip.write().await;
+        *i = ip;
+    }
 }
 
+#[async_trait]
 impl super::Metrics for Metrics {
-    fn record(&self, value: super::MetricValue) -> Result<()> {
+    async fn record(&self, value: super::MetricValue) -> Result<()> {
         match value {
             super::MetricValue::ActivePeers(num) => {
-                self.record_u64("active_peers", num.into())?;
+                self.record_u64("active_peers", num.into()).await?;
             }
         }
         Ok(())
