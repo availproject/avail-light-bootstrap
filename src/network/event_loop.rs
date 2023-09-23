@@ -1,7 +1,7 @@
 use super::{client::Command, Behaviour, BehaviourEvent};
 use anyhow::Result;
 use libp2p::{
-    autonat::Event as AutoNATEvent,
+    autonat::{Event as AutoNATEvent, InboundProbeEvent, OutboundProbeEvent},
     futures::StreamExt,
     identify::{Event as IdentifyEvent, Info},
     kad::{BootstrapOk, KademliaEvent, QueryId, QueryResult},
@@ -14,7 +14,7 @@ use tokio::{
     sync::{mpsc, oneshot},
     time::{interval_at, Instant, Interval},
 };
-use tracing::{debug, info, trace};
+use tracing::{debug, error, info, trace};
 
 enum QueryChannel {
     Bootstrap(oneshot::Sender<Result<()>>),
@@ -149,12 +149,29 @@ impl EventLoop {
                 }
             }
             SwarmEvent::Behaviour(BehaviourEvent::AutoNat(autonat_event)) => match autonat_event {
-                AutoNATEvent::InboundProbe(e) => {
-                    debug!("AutoNAT Inbound Probe: {:#?}", e);
-                }
-                AutoNATEvent::OutboundProbe(e) => {
-                    debug!("AutoNAT Outbound Probe: {:#?}", e);
-                }
+                AutoNATEvent::InboundProbe(inbound_event) => match inbound_event {
+                    InboundProbeEvent::Error { peer, error, .. } => {
+                        error!(
+                            "AutoNAT Inbound Probe failed with Peer: {:?}. Error: {:?}.",
+                            peer, error
+                        );
+                    }
+                    _ => {
+                        debug!("AutoNAT Inbound Probe: {:#?}", inbound_event);
+                    }
+                },
+                AutoNATEvent::OutboundProbe(outbound_event) => match outbound_event {
+                    OutboundProbeEvent::Error { peer, error, .. } => {
+                        error!(
+                            "AutoNAT Outbound Probe failed with Peer: {:#?}. Error: {:?}",
+                            peer, error
+                        );
+                    }
+                    _ => {
+                        debug!("AutoNAT Outbound Probe: {:#?}", outbound_event);
+                    }
+                },
+
                 AutoNATEvent::StatusChanged { old, new } => {
                     debug!(
                         "AutoNAT Old status: {:#?}. AutoNAT New status: {:#?}",
