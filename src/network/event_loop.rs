@@ -7,7 +7,7 @@ use libp2p::{
     kad::{BootstrapOk, KademliaEvent, QueryId, QueryResult},
     multiaddr::Protocol,
     swarm::{derive_prelude::Either, ConnectionError, SwarmEvent},
-    PeerId, Swarm,
+    Multiaddr, PeerId, Swarm,
 };
 use std::{collections::HashMap, time::Duration};
 use tokio::{
@@ -37,6 +37,7 @@ pub struct EventLoop {
     swarm: Swarm<Behaviour>,
     command_receiver: mpsc::Receiver<Command>,
     pending_kad_queries: HashMap<QueryId, QueryChannel>,
+    pending_kad_routing: HashMap<PeerId, oneshot::Sender<Result<()>>>,
     pending_swarm_events: HashMap<PeerId, SwarmChannel>,
     bootstrap: BootstrapState,
 }
@@ -55,6 +56,7 @@ impl EventLoop {
             swarm,
             command_receiver,
             pending_kad_queries: Default::default(),
+            pending_kad_routing: Default::default(),
             pending_swarm_events: Default::default(),
             bootstrap: BootstrapState {
                 is_startup_done: false,
@@ -89,6 +91,9 @@ impl EventLoop {
                     ..
                 } => {
                     debug!("Routing updated. Peer: {peer:?}. Is new Peer: {is_new_peer:?}. Addresses: {addresses:#?}. Old Peer: {old_peer:#?}");
+                    if let Some(ch) = self.pending_kad_routing.remove(&peer) {
+                        _ = ch.send(Ok(()));
+                    }
                 }
 
                 KademliaEvent::OutboundQueryProgressed { id, result, .. } => match result {
@@ -220,6 +225,17 @@ impl EventLoop {
                     Ok(_) => response_sender.send(Ok(())),
                     Err(err) => response_sender.send(Err(err.into())),
                 }
+            }
+            Command::AddAddress {
+                peer_id,
+                multiaddr,
+                response_sender,
+            } => {
+                self.swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, multiaddr);
+                self.pending_kad_routing.insert(peer_id, response_sender);
             }
             Command::Bootstrap { response_sender } => {
                 match self.swarm.behaviour_mut().kademlia.bootstrap() {

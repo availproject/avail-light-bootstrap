@@ -26,6 +26,21 @@ impl Client {
             .context("Sender not to be dropped")?
     }
 
+    pub async fn add_address(&self, peer_id: PeerId, multiaddr: Multiaddr) -> Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::AddAddress {
+                peer_id,
+                multiaddr,
+                response_sender,
+            })
+            .await
+            .context("Command receiver should not be dropped.")?;
+        response_receiver
+            .await
+            .context("Sender not to be dropped.")?
+    }
+
     pub async fn bootstrap(&self) -> Result<()> {
         // bootstrapping is impossible on an empty DHT table
         // at least one node is required to be known, so check
@@ -82,6 +97,11 @@ impl Client {
 pub enum Command {
     StartListening {
         addr: Multiaddr,
+        response_sender: oneshot::Sender<Result<()>>,
+    },
+    AddAddress {
+        peer_id: PeerId,
+        multiaddr: Multiaddr,
         response_sender: oneshot::Sender<Result<()>>,
     },
     Bootstrap {
