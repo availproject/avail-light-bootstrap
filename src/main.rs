@@ -82,7 +82,7 @@ async fn run() -> Result<()> {
             .context("Cannot initialize OpenTelemetry service.")?;
 
     // Spawn the network task
-    tokio::spawn(network_event_loop.run());
+    let loop_handle = tokio::spawn(network_event_loop.run());
 
     // Spawn metrics task
     let m_network_client = network_client.clone();
@@ -105,7 +105,7 @@ async fn run() -> Result<()> {
             }
             if let Ok(counted_peers) = m_network_client.count_dht_entries().await {
                 if let Err(err) = ot_metrics
-                    .record(MetricValue::ActivePeers(counted_peers))
+                    .record(MetricValue::CountedPeers(counted_peers))
                     .await
                 {
                     error!("Error recording network stats metric: {err}");
@@ -128,6 +128,8 @@ async fn run() -> Result<()> {
 
     info!("Bootstrap node starting ...");
     network_client.bootstrap().await?;
+    info!("Bootstrap done.");
+    loop_handle.await?;
 
     Ok(())
 }
