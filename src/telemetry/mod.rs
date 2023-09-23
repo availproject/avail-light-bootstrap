@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 pub enum MetricValue {
-    ActivePeers(usize),
+    CountedPeers(usize),
 }
 
 #[async_trait]

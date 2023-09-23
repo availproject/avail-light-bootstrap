@@ -50,8 +50,8 @@ impl Metrics {
 impl super::Metrics for Metrics {
     async fn record(&self, value: super::MetricValue) -> Result<()> {
         match value {
-            super::MetricValue::ActivePeers(num) => {
-                self.record_u64("active_peers", num as u64).await?;
+            super::MetricValue::CountedPeers(num) => {
+                self.record_u64("counted_peers", num as u64).await?;
             }
         }
         Ok(())
