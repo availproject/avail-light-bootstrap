@@ -307,6 +307,7 @@ impl EventLoop {
     fn handle_periodic_bootstraps(&mut self) {
         // periodic bootstraps should only start after the initial one is done
         if self.bootstrap.is_startup_done {
+            debug!("Starting periodic Bootstrap.");
             _ = self.swarm.behaviour_mut().kademlia.bootstrap();
         }
     }
