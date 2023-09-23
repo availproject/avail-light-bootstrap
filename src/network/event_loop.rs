@@ -21,7 +21,7 @@ enum QueryChannel {
 }
 
 enum SwarmChannel {
-    ConnectionEstablished(oneshot::Sender<()>),
+    ConnectionEstablished(oneshot::Sender<(PeerId, Multiaddr)>),
 }
 
 // BootstrapState keeps track of all things bootstrap related
@@ -190,17 +190,21 @@ impl EventLoop {
                     self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
                 }
             }
-            SwarmEvent::ConnectionEstablished { endpoint, .. } => {
-                // in case that we're listener,
-                // wait for a first successful connection
-                if endpoint.is_listener() {
+            SwarmEvent::ConnectionEstablished {
+                endpoint, peer_id, ..
+            } => {
+                // while waiting for a first successful connection,
+                // we're interested in a case where we are dialing back
+                if endpoint.is_dialer() {
                     // check if there is a command waiting for a response
                     let local_peer_id = self.swarm.local_peer_id();
                     if let Some(SwarmChannel::ConnectionEstablished(ch)) =
                         self.pending_swarm_events.remove(local_peer_id)
                     {
-                        // signal back that we have successfully established a connection
-                        _ = ch.send(());
+                        // signal back that we have successfully established a connection,
+                        // give us bach PeerId and Multiaddress
+                        let addr = endpoint.get_remote_address().to_owned();
+                        _ = ch.send((peer_id, addr));
                     }
                 }
             }
@@ -250,12 +254,25 @@ impl EventLoop {
                     }
                 }
             }
-            Command::WaitIncomingConnection { response_sender } => {
-                self.pending_swarm_events.insert(
-                    self.swarm.local_peer_id().to_owned(),
-                    SwarmChannel::ConnectionEstablished(response_sender),
-                );
-            }
+            Command::WaitConnection {
+                peer_id,
+                response_sender,
+            } => match peer_id {
+                // this means that we're waiting on a connection from
+                // a peer with provided PeerId
+                Some(id) => {
+                    self.pending_swarm_events
+                        .insert(id, SwarmChannel::ConnectionEstablished(response_sender));
+                }
+                // sending no particular PeerId means that we're
+                // waiting someone to establish connection with us
+                None => {
+                    self.pending_swarm_events.insert(
+                        self.swarm.local_peer_id().to_owned(),
+                        SwarmChannel::ConnectionEstablished(response_sender),
+                    );
+                }
+            },
             Command::CountDHTPeers { response_sender } => {
                 let mut total_peers: usize = 0;
                 for bucket in self.swarm.behaviour_mut().kademlia.kbuckets() {

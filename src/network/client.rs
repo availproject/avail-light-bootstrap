@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use libp2p::Multiaddr;
+use libp2p::{Multiaddr, PeerId};
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
@@ -48,15 +48,9 @@ impl Client {
         // for a bootstrap to succeed, we need at least 1 peer in our DHT
         if counted_peers < 1 {
             // we'll have to wait, until some one successfully connects us
-            let (connection_res_sender, connection_res_receiver) = oneshot::channel();
-            self.command_sender
-                .send(Command::WaitIncomingConnection {
-                    response_sender: connection_res_sender,
-                })
-                .await
-                .context("Command receiver should not be dropped while waiting on connection.")?;
-            // wait here
-            _ = connection_res_receiver.await?;
+            let (peer_id, multiaddr) = self.wait_connection(None).await?;
+            // add that peer to have someone to bootstrap with
+            self.add_address(peer_id, multiaddr).await?;
         }
 
         // proceed to bootstrap only if connected with someone
@@ -70,6 +64,18 @@ impl Client {
         boot_res_receiver
             .await
             .context("Sender not to be dropped while bootstrapping.")?
+    }
+
+    async fn wait_connection(&self, peer_id: Option<PeerId>) -> Result<(PeerId, Multiaddr)> {
+        let (connection_res_sender, connection_res_receiver) = oneshot::channel();
+        self.command_sender
+            .send(Command::WaitConnection {
+                peer_id,
+                response_sender: connection_res_sender,
+            })
+            .await
+            .context("Command receiver should not be dropped while waiting on connection.")?;
+        Ok(connection_res_receiver.await?)
     }
 
     pub async fn count_dht_entries(&self) -> Result<usize> {
@@ -107,8 +113,9 @@ pub enum Command {
     Bootstrap {
         response_sender: oneshot::Sender<Result<()>>,
     },
-    WaitIncomingConnection {
-        response_sender: oneshot::Sender<()>,
+    WaitConnection {
+        peer_id: Option<PeerId>,
+        response_sender: oneshot::Sender<(PeerId, Multiaddr)>,
     },
     CountDHTPeers {
         response_sender: oneshot::Sender<usize>,
