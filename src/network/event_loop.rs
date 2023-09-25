@@ -95,7 +95,6 @@ impl EventLoop {
                         _ = ch.send(Ok(()));
                     }
                 }
-
                 KademliaEvent::OutboundQueryProgressed { id, result, .. } => match result {
                     QueryResult::Bootstrap(bootstrap_result) => match bootstrap_result {
                         Ok(BootstrapOk {
@@ -126,27 +125,22 @@ impl EventLoop {
                 },
                 _ => {}
             },
-            SwarmEvent::Behaviour(BehaviourEvent::Identify(identify_event)) => {
-                match identify_event {
-                    IdentifyEvent::Received {
-                        peer_id,
-                        info: Info { listen_addrs, .. },
-                    } => {
-                        debug!("Identity received from: {peer_id:?} on listen address: {listen_addrs:?}");
-                        // interested in addresses with actual Multiaddresses
-                        // containing proper 'p2p' protocol tag
-                        listen_addrs
-                            .iter()
-                            .filter(|a| a.to_string().contains(Protocol::P2p(peer_id).tag()))
-                            .for_each(|a| {
-                                self.swarm
-                                    .behaviour_mut()
-                                    .kademlia
-                                    .add_address(&peer_id, a.clone());
-                            });
-                    }
-                    _ => {}
-                }
+            SwarmEvent::Behaviour(BehaviourEvent::Identify(IdentifyEvent::Received {
+                peer_id,
+                info: Info { listen_addrs, .. },
+            })) => {
+                debug!("Identity received from: {peer_id:?} on listen address: {listen_addrs:?}");
+                // interested in addresses with actual Multiaddresses
+                // containing proper 'p2p' protocol tag
+                listen_addrs
+                    .iter()
+                    .filter(|a| a.to_string().contains(Protocol::P2p(peer_id).tag()))
+                    .for_each(|a| {
+                        self.swarm
+                            .behaviour_mut()
+                            .kademlia
+                            .add_address(&peer_id, a.clone());
+                    });
             }
             SwarmEvent::Behaviour(BehaviourEvent::AutoNat(autonat_event)) => match autonat_event {
                 AutoNATEvent::InboundProbe(inbound_event) => match inbound_event {
