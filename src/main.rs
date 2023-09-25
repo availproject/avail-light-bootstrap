@@ -96,10 +96,10 @@ async fn run() -> Result<()> {
             if let Ok(multiaddr) = m_network_client.get_multiaddress().await {
                 if let Some(addr) = multiaddr {
                     // set Multiaddress
-                    _ = ot_metrics.set_multiaddress(addr.to_string());
+                    _ = ot_metrics.set_multiaddress(addr.to_string()).await;
                     if let Some(ip) = network::extract_ip(addr) {
                         // set IP
-                        _ = ot_metrics.set_ip(ip);
+                        _ = ot_metrics.set_ip(ip).await;
                     }
                 }
             }
