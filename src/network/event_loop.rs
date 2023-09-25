@@ -95,34 +95,35 @@ impl EventLoop {
                         _ = ch.send(Ok(()));
                     }
                 }
-                KademliaEvent::OutboundQueryProgressed { id, result, .. } => match result {
-                    QueryResult::Bootstrap(bootstrap_result) => match bootstrap_result {
-                        Ok(BootstrapOk {
-                            peer,
-                            num_remaining,
-                        }) => {
-                            trace!("BootstrapOK event. PeerID: {peer:?}. Num remaining: {num_remaining:?}.");
-                            if num_remaining == 0 {
+                KademliaEvent::OutboundQueryProgressed { id, result, .. } => {
+                    if let QueryResult::Bootstrap(bootstrap_result) = result {
+                        match bootstrap_result {
+                            Ok(BootstrapOk {
+                                peer,
+                                num_remaining,
+                            }) => {
+                                trace!("BootstrapOK event. PeerID: {peer:?}. Num remaining: {num_remaining:?}.");
+                                if num_remaining == 0 {
+                                    if let Some(QueryChannel::Bootstrap(ch)) =
+                                        self.pending_kad_queries.remove(&id)
+                                    {
+                                        _ = ch.send(Ok(()));
+                                        // we can say that the initial bootstrap at initialization is done
+                                        self.bootstrap.is_startup_done = true;
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                trace!("Bootstrap error event. Error: {err:?}.");
                                 if let Some(QueryChannel::Bootstrap(ch)) =
                                     self.pending_kad_queries.remove(&id)
                                 {
-                                    _ = ch.send(Ok(()));
-                                    // we can say that the initial bootstrap at initialization is done
-                                    self.bootstrap.is_startup_done = true;
+                                    _ = ch.send(Err(err.into()));
                                 }
                             }
                         }
-                        Err(err) => {
-                            trace!("Bootstrap error event. Error: {err:?}.");
-                            if let Some(QueryChannel::Bootstrap(ch)) =
-                                self.pending_kad_queries.remove(&id)
-                            {
-                                _ = ch.send(Err(err.into()));
-                            }
-                        }
-                    },
-                    _ => {}
-                },
+                    }
+                }
                 _ => {}
             },
             SwarmEvent::Behaviour(BehaviourEvent::Identify(IdentifyEvent::Received {
