@@ -93,9 +93,7 @@ impl Client {
             .send(Command::GetMultiaddress { response_sender })
             .await
             .context("Command receiver not to be dropped.")?;
-        Ok(response_receiver
-            .await
-            .context("Sender not to be dropped.")?)
+        response_receiver.await.context("Sender not to be dropped.")
     }
 }
 
