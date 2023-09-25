@@ -195,14 +195,15 @@ impl EventLoop {
                     }
                 }
             }
-            SwarmEvent::OutgoingConnectionError { peer_id, .. } => {
+            SwarmEvent::OutgoingConnectionError {
+                peer_id: Some(peer_id),
+                ..
+            } => {
                 // which ever error that was,
                 // all the currently implemented ones are pretty critical
                 // remove error producing peer from further dialing
-                if let Some(peer_id) = peer_id {
-                    trace!("Error produced by peer with PeerId: {peer_id:?}");
-                    self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
-                }
+                trace!("Error produced by peer with PeerId: {peer_id:?}");
+                self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
             }
             SwarmEvent::ConnectionEstablished {
                 endpoint, peer_id, ..
