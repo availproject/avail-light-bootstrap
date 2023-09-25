@@ -93,14 +93,12 @@ async fn run() -> Result<()> {
         loop {
             interval.tick().await;
             // try and read current multiaddress
-            if let Ok(multiaddr) = m_network_client.get_multiaddress().await {
-                if let Some(addr) = multiaddr {
-                    // set Multiaddress
-                    _ = ot_metrics.set_multiaddress(addr.to_string()).await;
-                    if let Some(ip) = network::extract_ip(addr) {
-                        // set IP
-                        _ = ot_metrics.set_ip(ip).await;
-                    }
+            if let Ok(Some(addr)) = m_network_client.get_multiaddress().await {
+                // set Multiaddress
+                _ = ot_metrics.set_multiaddress(addr.to_string()).await;
+                if let Some(ip) = network::extract_ip(addr) {
+                    // set IP
+                    _ = ot_metrics.set_ip(ip).await;
                 }
             }
             if let Ok(counted_peers) = m_network_client.count_dht_entries().await {
