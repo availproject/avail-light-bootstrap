@@ -7,15 +7,24 @@ authors = ["Avail Team"]
 
 [dependencies]
 anyhow = "1.0.71"
-clap = { version = "4.2.7", features = ["derive"] }
+async-std = { version = "1.12.0", features = ["attributes"] }
+async-trait = "0.1.73"
+clap = { version = "4.4.4", features = ["derive", "cargo"] }
 confy = "0.5.1"
 hex = "0.4.3"
-libp2p = { version = "0.51.3", features = ["tokio", "macros", "kad", "ping", "identify", "autonat", "quic"] }
+libp2p = { version = "0.52.3", features = ["tokio", "macros", "kad", "ping", "identify", "autonat", "quic", "dns"] }
 multihash = { version = "0.14.0", default-features = false, features = ["blake3", "sha3"] }
 serde = { version = "1.0.163", features = ["derive"] }
 tokio = { version = "1.28.1", features = ["sync", "macros", "rt-multi-thread"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["json"] }
+
+# OpenTelemetry
+opentelemetry = "0.20.0"
+opentelemetry-otlp = {version = "0.13.0", features = ["grpc-tonic", "metrics"]}
+opentelemetry_api = { version = "0.20.0", features = ["metrics"] }
+opentelemetry_sdk = { version = "0.20.0", features = ["metrics", "rt-tokio"] }
+void = "1.0.2"
 
 [profile.dev]
 panic = "abort"

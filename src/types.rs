@@ -34,6 +34,12 @@ pub struct RuntimeConfig {
     pub kad_connection_idle_timeout: u32,
     /// Sets the timeout for a single Kademlia query. (default: 60s).
     pub kad_query_timeout: u32,
+    /// Defines a period of time in which periodic bootstraps will be repeated. (default: 300s)
+    pub bootstrap_period: u64,
+    /// OpenTelemetry Collector endpoint (default: http://otelcollector.avail.tools:4317)
+    pub ot_collector_endpoint: String,
+    /// Defines a period of time in which periodic metric network dump events will be repeated. (default: 360s)
+    pub metrics_network_dump_interval: u64,
 }
 
 pub struct LibP2PConfig {
@@ -42,6 +48,8 @@ pub struct LibP2PConfig {
     pub identify_agent_version: String,
     pub identify_protocol_version: String,
     pub kademlia: KademliaConfig,
+    pub secret_key: Option<SecretKey>,
+    pub bootstrap_interval: Duration,
 }
 
 impl From<&RuntimeConfig> for LibP2PConfig {
@@ -52,6 +60,8 @@ impl From<&RuntimeConfig> for LibP2PConfig {
             identify_agent_version: rtcfg.identify_agent.clone(),
             identify_protocol_version: rtcfg.identify_protocol.clone(),
             kademlia: rtcfg.into(),
+            secret_key: rtcfg.secret_key.clone(),
+            bootstrap_interval: Duration::from_secs(rtcfg.bootstrap_period),
         }
     }
 }
@@ -83,6 +93,9 @@ impl Default for RuntimeConfig {
             identify_agent: "avail-light-client/rust-client".to_string(),
             kad_connection_idle_timeout: 30,
             kad_query_timeout: 60,
+            bootstrap_period: 300,
+            ot_collector_endpoint: "http://otelcollector.avail.tools:4317".to_string(),
+            metrics_network_dump_interval: 360,
         }
     }
 }

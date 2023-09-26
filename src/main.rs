@@ -1,30 +1,23 @@
 #![doc = include_str!("../README.md")]
 
+mod network;
+mod telemetry;
 mod types;
 
+use crate::telemetry::{MetricValue, Metrics};
 use anyhow::{Context, Result};
 use clap::Parser;
-use libp2p::{
-    autonat,
-    core::{muxing::StreamMuxerBox, transport::Boxed},
-    futures::StreamExt,
-    identify::{self, Event as IdentifyEvent, Info},
-    identity::Keypair,
-    kad::{self, store::MemoryStore, Kademlia, KademliaConfig},
-    multiaddr::Protocol,
-    ping::{self, Config as PingConfig},
-    quic::{tokio::Transport as QuicTransport, Config as QuicConfig},
-    swarm::{NetworkBehaviour, SwarmBuilder, SwarmEvent},
-    Multiaddr, PeerId, Swarm, Transport,
-};
-use multihash::{self, Hasher};
-use std::net::Ipv4Addr;
-use tracing::{debug, error, info, metadata::ParseLevelError, warn, Level};
+use libp2p::{multiaddr::Protocol, Multiaddr};
+use std::{net::Ipv4Addr, time::Duration};
+use tokio::time::{interval_at, Instant};
+use tracing::{error, info, metadata::ParseLevelError, warn, Level};
 use tracing_subscriber::{
     fmt::format::{self, DefaultFields, Format, Full, Json},
     FmtSubscriber,
 };
-use types::{LibP2PConfig, RuntimeConfig, SecretKey};
+use types::RuntimeConfig;
+
+const CLIENT_ROLE: &str = "bootstrap_node";
 
 #[derive(Debug, Parser)]
 #[clap(name = "Avail Bootstrap Node")]
@@ -36,14 +29,6 @@ struct CliOpts {
         help = "yaml configuration file"
     )]
     config: String,
-}
-
-#[derive(NetworkBehaviour)]
-struct Behaviour {
-    kademlia: kad::Kademlia<MemoryStore>,
-    identify: identify::Behaviour,
-    auto_nat: autonat::Behaviour,
-    ping: ping::Behaviour,
 }
 
 fn parse_log_lvl(log_lvl: &str, default: Level) -> (Level, Option<ParseLevelError>) {
@@ -68,69 +53,6 @@ fn default_subscriber(log_lvl: Level) -> FmtSubscriber<DefaultFields, Format<Ful
         .finish()
 }
 
-fn generate_id_keys(secret_key: Option<SecretKey>) -> Result<Keypair> {
-    let id_keys = match secret_key {
-        // if seed was provided, then generate secret key from that seed
-        Some(SecretKey::Seed { seed }) => {
-            let seed_digest = multihash::Sha3_256::digest(seed.as_bytes());
-            Keypair::ed25519_from_bytes(seed_digest)
-                .context("could not generate keypair from seed")?
-        }
-        // import provided secret key
-        Some(SecretKey::Key { key }) => {
-            let mut decoded_key = [0u8; 32];
-            hex::decode_to_slice(key.into_bytes(), &mut decoded_key)
-                .context("could not decode secret key from config")?;
-            Keypair::ed25519_from_bytes(decoded_key).context("could not import secret key")?
-        }
-        // if neither seed nor secrete key were provided, generate keypair from random seed
-        None => Keypair::generate_ed25519(),
-    };
-
-    Ok(id_keys)
-}
-
-fn build_transport(id_keys: Keypair) -> Boxed<(PeerId, StreamMuxerBox)> {
-    let mut quic_config = QuicConfig::new(&id_keys);
-    quic_config.support_draft_29 = true;
-    QuicTransport::new(quic_config)
-        .map(|(peer_id, muxer), _| (peer_id, StreamMuxerBox::new(muxer)))
-        .boxed()
-}
-
-fn create_swarm(id_keys: Keypair, cfg: LibP2PConfig) -> Swarm<Behaviour> {
-    let local_peer_id = PeerId::from(id_keys.public());
-    info!("Local peer id: {:?}.", local_peer_id,);
-
-    // create new Kademlia Memory Store
-    let kad_store = MemoryStore::new(local_peer_id);
-
-    // create Kademlia Config
-    let mut kad_cfg = KademliaConfig::default();
-    kad_cfg
-        .set_connection_idle_timeout(cfg.kademlia.connection_idle_timeout)
-        .set_query_timeout(cfg.kademlia.query_timeout);
-
-    // create Indetify Protocol Config
-    let identify_cfg = identify::Config::new(cfg.identify_protocol_version, id_keys.public())
-        .with_agent_version(cfg.identify_agent_version);
-
-    // create AutoNAT Server Config
-    let autonat_cfg = autonat::Config {
-        only_global_ips: cfg.autonat_only_global_ips,
-        ..Default::default()
-    };
-
-    let behaviour = Behaviour {
-        kademlia: Kademlia::with_config(local_peer_id, kad_store, kad_cfg),
-        identify: identify::Behaviour::new(identify_cfg),
-        auto_nat: autonat::Behaviour::new(local_peer_id, autonat_cfg),
-        ping: ping::Behaviour::new(PingConfig::new()),
-    };
-
-    SwarmBuilder::with_tokio_executor(build_transport(id_keys), behaviour, local_peer_id).build()
-}
-
 async fn run() -> Result<()> {
     let opts = CliOpts::parse();
     let cfg_path = &opts.config;
@@ -150,50 +72,64 @@ async fn run() -> Result<()> {
         warn!("Using default log level: {err}");
     }
 
-    info!("Bootstrap node starting ...");
-    let id_keys = generate_id_keys(cfg.secret_key.clone())?;
-    let mut swarm = create_swarm(id_keys, (&cfg).into());
+    let (id_keys, peer_id) = network::keypair((&cfg).into())?;
+
+    let (network_client, network_event_loop) = network::init((&cfg).into(), id_keys)
+        .context("Failed to initialize P2P Network Service.")?;
+
+    let ot_metrics =
+        telemetry::otlp::initialize(cfg.ot_collector_endpoint, peer_id, CLIENT_ROLE.into())
+            .context("Cannot initialize OpenTelemetry service.")?;
+
+    // Spawn the network task
+    let loop_handle = tokio::spawn(network_event_loop.run());
+
+    // Spawn metrics task
+    let m_network_client = network_client.clone();
+    tokio::spawn(async move {
+        let pause_duration = Duration::from_secs(cfg.metrics_network_dump_interval);
+        let mut interval = interval_at(Instant::now() + pause_duration, pause_duration);
+        // repeat and send commands on given interval
+        loop {
+            interval.tick().await;
+            // try and read current multiaddress
+            if let Ok(Some(addr)) = m_network_client.get_multiaddress().await {
+                // set Multiaddress
+                _ = ot_metrics.set_multiaddress(addr.to_string()).await;
+                if let Some(ip) = network::extract_ip(addr) {
+                    // set IP
+                    _ = ot_metrics.set_ip(ip).await;
+                }
+            }
+            if let Ok(counted_peers) = m_network_client.count_dht_entries().await {
+                if let Err(err) = ot_metrics
+                    .record(MetricValue::CountedPeers(counted_peers))
+                    .await
+                {
+                    error!("Error recording network stats metric: {err}");
+                }
+            };
+        }
+    });
 
     // Listen on all interfaces
-    let listen_addr = Multiaddr::empty()
-        .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
-        .with(Protocol::Udp(cfg.p2p_port))
-        .with(Protocol::QuicV1);
-    swarm.listen_on(listen_addr)?;
+    network_client
+        .start_listening(
+            Multiaddr::empty()
+                .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
+                .with(Protocol::Udp(cfg.p2p_port))
+                .with(Protocol::QuicV1),
+        )
+        .await
+        .context("Listening on UDP not to fail.")?;
+    info!("Started listening on port: {:?}.", cfg.p2p_port);
 
-    tokio::spawn(async move {
-        loop {
-            match swarm.next().await.expect("Stream to be infinite.") {
-                SwarmEvent::NewListenAddr { address, .. } => {
-                    info!("Bootstrap is listening on {address:?}");
-                }
+    info!("Bootstrap node starting ...");
+    network_client.bootstrap().await?;
+    info!("Bootstrap done.");
+    loop_handle.await?;
 
-                SwarmEvent::Behaviour(BehaviourEvent::Identify(event)) => match event {
-                    IdentifyEvent::Received {
-                        peer_id,
-                        info: Info { listen_addrs, protocol_version, .. },
-                    } => {
-                        debug!("Identity Received from: {peer_id:?} on listen address: {listen_addrs:?}");
-
-                        // only keep records of nodes with the same application-specific
-                        // version of the protocol family used by the peer
-                        if protocol_version == cfg.identify_protocol {
-                        for addr in listen_addrs {
-                            swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
-                        }
-                    }}
-
-                    IdentifyEvent::Sent { peer_id } => {
-                        debug!("Identity Sent event to: {peer_id:?}");
-                    }
-
-                    _ => {}
-                },
-
-                _ => {}
-            }
-        }
-    }).await.context("Event loop failed to run")
+    Ok(())
 }
 
 #[tokio::main]
