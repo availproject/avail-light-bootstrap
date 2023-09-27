@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 pub enum MetricValue {
-    CountedPeers(usize),
+    KadRoutingPeerNum(usize),
 }
 
 #[async_trait]

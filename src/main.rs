@@ -103,7 +103,7 @@ async fn run() -> Result<()> {
             }
             if let Ok(counted_peers) = m_network_client.count_dht_entries().await {
                 if let Err(err) = ot_metrics
-                    .record(MetricValue::CountedPeers(counted_peers))
+                    .record(MetricValue::KadRoutingPeerNum(counted_peers))
                     .await
                 {
                     error!("Error recording network stats metric: {err}");
@@ -117,12 +117,12 @@ async fn run() -> Result<()> {
         .start_listening(
             Multiaddr::empty()
                 .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
-                .with(Protocol::Udp(cfg.p2p_port))
+                .with(Protocol::Udp(cfg.port))
                 .with(Protocol::QuicV1),
         )
         .await
         .context("Listening on UDP not to fail.")?;
-    info!("Started listening on port: {:?}.", cfg.p2p_port);
+    info!("Started listening on port: {:?}.", cfg.port);
 
     info!("Bootstrap node starting ...");
     network_client.bootstrap().await?;

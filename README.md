@@ -9,7 +9,7 @@
 
 `avail-light-bootstrap` is called a Bootstrap node. Bootstrappers act as the initial point of contact for other Avail clients to find other peers in the network.
 
-These network entry points alow other newly joined nodes to discover new peers and to connect to them. 
+These network entry points alow other newly joined nodes to discover new peers and to connect to them.
 
 To start a Bootstrap node, run:
 
@@ -18,6 +18,7 @@ cargo run -- -c config.yaml
 ```
 
 ## Config reference
+
 ```yaml
 # Set the Log Level
 log_level = "info"
@@ -29,7 +30,7 @@ log_format_json = false
 # If `secret_key` is not set, random seed will be used.
 secret_key = { seed="1" }
 # P2P service port (default: 37000).
-p2p_port = 3700
+port = 3700
 # Sets application-specific version of the protocol family used by the peer. (default: "/avail_kad/id/1.0.0")
 identify_protocol = "/avail_kad/id/1.0.0"
 # Sets agent version that is sent to peers. (default: "avail-light-client/rust-client")
