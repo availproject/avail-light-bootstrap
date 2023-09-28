@@ -22,7 +22,7 @@ pub struct RuntimeConfig {
     /// If `secret_key` is not set, random seed will be used.
     pub secret_key: Option<SecretKey>,
     /// Sets the listening P2P network service port. (default: 37000)
-    pub p2p_port: u16,
+    pub port: u16,
     /// Sets application-specific version of the protocol family used by the peer. (default: "/avail_kad/id/1.0.0")
     pub identify_protocol: String,
     /// Sets agent version that is sent to peers in the network. (default: "avail-light-client/rust-client")
@@ -55,7 +55,7 @@ pub struct LibP2PConfig {
 impl From<&RuntimeConfig> for LibP2PConfig {
     fn from(rtcfg: &RuntimeConfig) -> Self {
         Self {
-            port: rtcfg.p2p_port,
+            port: rtcfg.port,
             autonat_only_global_ips: rtcfg.autonat_only_global_ips,
             identify_agent_version: rtcfg.identify_agent.clone(),
             identify_protocol_version: rtcfg.identify_protocol.clone(),
@@ -87,7 +87,7 @@ impl Default for RuntimeConfig {
             log_level: "INFO".to_string(),
             log_format_json: false,
             secret_key: None,
-            p2p_port: 37000,
+            port: 37000,
             autonat_only_global_ips: false,
             identify_protocol: "/avail_kad/id/1.0.0".to_string(),
             identify_agent: "avail-light-client/rust-client".to_string(),
