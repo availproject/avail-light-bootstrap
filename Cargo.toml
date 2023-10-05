@@ -25,6 +25,7 @@ opentelemetry-otlp = {version = "0.13.0", features = ["grpc-tonic", "metrics"]}
 opentelemetry_api = { version = "0.20.0", features = ["metrics"] }
 opentelemetry_sdk = { version = "0.20.0", features = ["metrics", "rt-tokio"] }
 void = "1.0.2"
+warp = "0.3.6"
 
 [profile.dev]
 panic = "abort"

@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod network;
+mod server;
 mod telemetry;
 mod types;
 
@@ -76,6 +77,8 @@ async fn run() -> Result<()> {
 
     let (network_client, network_event_loop) = network::init((&cfg).into(), id_keys)
         .context("Failed to initialize P2P Network Service.")?;
+
+    tokio::spawn(server::run((&cfg).into()));
 
     let ot_metrics =
         telemetry::otlp::initialize(cfg.ot_collector_endpoint, peer_id, CLIENT_ROLE.into())
