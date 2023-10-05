@@ -1,5 +1,6 @@
-use std::time::Duration;
+use std::{fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
 
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -12,6 +13,10 @@ pub enum SecretKey {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct RuntimeConfig {
+    /// Bootstrap HTTP server host name (default: 127.0.0.1).
+    pub http_server_host: String,
+    /// Bootstrap HTTP server port (default: 7700).
+    pub http_server_port: u16,
     /// Log level. See `<https://docs.rs/log/0.4.17/log/enum.LevelFilter.html>` for possible log level values. (default: `INFO`)
     pub log_level: String,
     /// Set to display structured logs in JSON format. Otherwise, plain text format is used. (default: false)
@@ -84,6 +89,8 @@ impl From<&RuntimeConfig> for KademliaConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         RuntimeConfig {
+            http_server_host: "127.0.0.1".to_owned(),
+            http_server_port: 7700,
             log_level: "INFO".to_string(),
             log_format_json: false,
             secret_key: None,
@@ -97,5 +104,33 @@ impl Default for RuntimeConfig {
             ot_collector_endpoint: "http://otelcollector.avail.tools:4317".to_string(),
             metrics_network_dump_interval: 360,
         }
+    }
+}
+
+pub struct Addr {
+    pub host: String,
+    pub port: u16,
+}
+
+impl From<&RuntimeConfig> for Addr {
+    fn from(value: &RuntimeConfig) -> Self {
+        Addr {
+            host: value.http_server_host.clone(),
+            port: value.http_server_port.clone(),
+        }
+    }
+}
+
+impl TryInto<SocketAddr> for Addr {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<SocketAddr, Self::Error> {
+        SocketAddr::from_str(&format!("{self}")).context("Unable to parse host and port")
+    }
+}
+
+impl Display for Addr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.host, self.port)
     }
 }
