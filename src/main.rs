@@ -25,7 +25,7 @@ const CLIENT_ROLE: &str = "bootstrap_node";
 struct CliOpts {
     #[clap(
         long,
-        short = 'C',
+        short = 'c',
         default_value = "config.yaml",
         help = "yaml configuration file"
     )]
