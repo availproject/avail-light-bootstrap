@@ -21,10 +21,11 @@ pub struct RuntimeConfig {
     pub log_level: String,
     /// Set to display structured logs in JSON format. Otherwise, plain text format is used. (default: false)
     pub log_format_json: bool,
-    /// Secret key for used to generate keypair. Can be either set to `seed` or to `key`.
+    /// Secret key used to generate keypair. Can be either set to `seed` or to `key`. (default: seed="1")
     /// If set to seed, keypair will be generated from that seed.
     /// If set to key, a valid ed25519 private key must be provided, else the client will fail
     /// If `secret_key` is not set, random seed will be used.
+    /// Default bootstrap peerID is 12D3KooWStAKPADXqJ7cngPYXd2mSANpdgh1xQ34aouufHA2xShz
     pub secret_key: Option<SecretKey>,
     /// Sets the listening P2P network service port. (default: 37000)
     pub port: u16,
@@ -93,7 +94,9 @@ impl Default for RuntimeConfig {
             http_server_port: 7700,
             log_level: "INFO".to_string(),
             log_format_json: false,
-            secret_key: None,
+            secret_key: Some(SecretKey::Seed {
+                seed: "1".to_string(),
+            }),
             port: 37000,
             autonat_only_global_ips: false,
             identify_protocol: "/avail_kad/id/1.0.0".to_string(),
