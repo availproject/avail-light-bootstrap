@@ -32,3 +32,8 @@ panic = "abort"
 
 [profile.release]
 panic = "abort"
+
+[profile.maxperf]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
