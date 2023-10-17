@@ -23,7 +23,7 @@ cargo run -- -c config.yaml
 # Bootstrap HTTP server host name (default: 127.0.0.1)
 http_server_host = "127.0.0.1"
 # Bootstrap HTTP server port (default: 7700).
-http_server_port = "7700"
+http_server_port = 7700
 # Set the Log Level
 log_level = "info"
 # If set to true, logs are displayed in JSON format, which is used for structured logging. Otherwise, plain text format is used (default: false).
