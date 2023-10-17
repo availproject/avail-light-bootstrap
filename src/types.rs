@@ -27,7 +27,7 @@ pub struct RuntimeConfig {
     /// If `secret_key` is not set, random seed will be used.
     /// Default bootstrap peerID is 12D3KooWStAKPADXqJ7cngPYXd2mSANpdgh1xQ34aouufHA2xShz
     pub secret_key: Option<SecretKey>,
-    /// Sets the listening P2P network service port. (default: 37000)
+    /// Sets the listening P2P network service port. (default: 39000)
     pub port: u16,
     /// Sets application-specific version of the protocol family used by the peer. (default: "/avail_kad/id/1.0.0")
     pub identify_protocol: String,
@@ -97,7 +97,7 @@ impl Default for RuntimeConfig {
             secret_key: Some(SecretKey::Seed {
                 seed: "1".to_string(),
             }),
-            port: 37000,
+            port: 39000,
             autonat_only_global_ips: false,
             identify_protocol: "/avail_kad/id/1.0.0".to_string(),
             identify_agent: "avail-light-client/rust-client".to_string(),
