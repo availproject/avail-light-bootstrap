@@ -73,6 +73,8 @@ async fn run() -> Result<()> {
         warn!("Using default log level: {err}");
     }
 
+    info!("Using config: {:?}", cfg);
+
     let (id_keys, peer_id) = network::keypair((&cfg).into())?;
 
     let (network_client, network_event_loop) = network::init((&cfg).into(), id_keys)
