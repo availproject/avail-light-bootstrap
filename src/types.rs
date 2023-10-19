@@ -21,12 +21,6 @@ pub struct RuntimeConfig {
     pub log_level: String,
     /// Set to display structured logs in JSON format. Otherwise, plain text format is used. (default: false)
     pub log_format_json: bool,
-    /// Secret key used to generate keypair. Can be either set to `seed` or to `key`. (default: seed="1")
-    /// If set to seed, keypair will be generated from that seed.
-    /// If set to key, a valid ed25519 private key must be provided, else the client will fail
-    /// If `secret_key` is not set, random seed will be used.
-    /// Default bootstrap peerID is 12D3KooWStAKPADXqJ7cngPYXd2mSANpdgh1xQ34aouufHA2xShz
-    pub secret_key: Option<SecretKey>,
     /// Sets the listening P2P network service port. (default: 39000)
     pub port: u16,
     /// Sets application-specific version of the protocol family used by the peer. (default: "/avail_kad/id/1.0.0")
@@ -46,6 +40,12 @@ pub struct RuntimeConfig {
     pub ot_collector_endpoint: String,
     /// Defines a period of time in which periodic metric network dump events will be repeated. (default: 360s)
     pub metrics_network_dump_interval: u64,
+    /// Secret key used to generate keypair. Can be either set to `seed` or to `key`. (default: seed="1")
+    /// If set to seed, keypair will be generated from that seed.
+    /// If set to key, a valid ed25519 private key must be provided, else the client will fail
+    /// If `secret_key` is not set, random seed will be used.
+    /// Default bootstrap peerID is 12D3KooWStAKPADXqJ7cngPYXd2mSANpdgh1xQ34aouufHA2xShz
+    pub secret_key: Option<SecretKey>,
 }
 
 pub struct LibP2PConfig {
