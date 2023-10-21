@@ -8,7 +8,7 @@ use libp2p::{
     dns::TokioDnsConfig,
     identify::{Behaviour as Identify, Config as IdentifyConfig},
     identity::Keypair,
-    kad::{store::MemoryStore, Kademlia, KademliaConfig},
+    kad::{store::MemoryStore, Kademlia, KademliaConfig, Mode},
     multiaddr::Protocol,
     ping::{Behaviour as Ping, Config as PingConfig},
     quic::{tokio::Transport as TokioQuic, Config as QuicConfig},
@@ -66,12 +66,15 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
         ..Default::default()
     };
     // initialize Network Behaviour
-    let behaviour = Behaviour {
+    let mut behaviour = Behaviour {
         kademlia: Kademlia::with_config(local_peer_id, kad_store, kad_cfg),
         identify: Identify::new(identify_cfg),
         auto_nat: AutoNAT::new(local_peer_id, autonat_cfg),
         ping: Ping::new(PingConfig::new()),
     };
+
+    // Enable Kademlila Server mode
+    behaviour.kademlia.set_mode(Some(Mode::Server));
     // build the Swarm
     // Swarm connects the lower transport logic
     // with the higher layer network behaviour logic
