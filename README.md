@@ -7,7 +7,7 @@
 
 ## Introduction
 
-`avail-light-bootstrap` is called a Bootstrap node. Bootstraps act as the initial point of contact for other Avail clients to find other peers in the network.
+`avail-light-bootstrap` is a Bootstrap node for Avail Light Client. Bootstraps act as the initial point of contact for other Avail clients, helping them discover other peers in the network.
 
 These network entry points alow other newly joined nodes to discover new peers and to connect to them.
 
@@ -34,8 +34,8 @@ log_format_json = false
 # If `secret_key` is not set, random seed will be used.
 # Default bootstrap peerID is 12D3KooWStAKPADXqJ7cngPYXd2mSANpdgh1xQ34aouufHA2xShz
 secret_key = { seed="1" }
-# P2P service port (default: 37000).
-port = 37000
+# P2P service port (default: 39000).
+port = 39000
 # Sets application-specific version of the protocol family used by the peer. (default: "/avail_kad/id/1.0.0")
 identify_protocol = "/avail_kad/id/1.0.0"
 # Sets agent version that is sent to peers. (default: "avail-light-client/rust-client")
