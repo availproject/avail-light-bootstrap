@@ -114,6 +114,7 @@ async fn run() -> Result<()> {
                     error!("Error recording network stats metric: {err}");
                 }
             };
+            _ = ot_metrics.record(MetricValue::HealthCheck()).await;
         }
     });
 

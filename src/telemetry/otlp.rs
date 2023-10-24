@@ -14,9 +14,8 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    async fn attributes(&self) -> [KeyValue; 6] {
+    async fn attributes(&self) -> [KeyValue; 5] {
         [
-            KeyValue::new("job", "avail_light_bootstrap"),
             KeyValue::new("version", clap::crate_version!()),
             KeyValue::new("role", self.role.clone()),
             KeyValue::new("peerID", self.peer_id.clone()),
@@ -52,6 +51,9 @@ impl super::Metrics for Metrics {
         match value {
             super::MetricValue::KadRoutingPeerNum(num) => {
                 self.record_u64("kad_routing_peer_num", num as u64).await?;
+            }
+            super::MetricValue::HealthCheck() => {
+                self.record_u64("up", 1).await?;
             }
         }
         Ok(())

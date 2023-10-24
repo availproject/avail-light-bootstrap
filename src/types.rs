@@ -38,7 +38,7 @@ pub struct RuntimeConfig {
     pub bootstrap_period: u64,
     /// OpenTelemetry Collector endpoint (default: http://otelcollector.avail.tools:4317)
     pub ot_collector_endpoint: String,
-    /// Defines a period of time in which periodic metric network dump events will be repeated. (default: 360s)
+    /// Defines a period of time in which periodic metric network dump events will be repeated. (default: 15s)
     pub metrics_network_dump_interval: u64,
     /// Secret key used to generate keypair. Can be either set to `seed` or to `key`. (default: seed="1")
     /// If set to seed, keypair will be generated from that seed.
@@ -105,7 +105,7 @@ impl Default for RuntimeConfig {
             kad_query_timeout: 60,
             bootstrap_period: 300,
             ot_collector_endpoint: "http://otelcollector.avail.tools:4317".to_string(),
-            metrics_network_dump_interval: 360,
+            metrics_network_dump_interval: 15,
         }
     }
 }

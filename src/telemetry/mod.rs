@@ -5,6 +5,7 @@ use async_trait::async_trait;
 
 pub enum MetricValue {
     KadRoutingPeerNum(usize),
+    HealthCheck(),
 }
 
 #[async_trait]

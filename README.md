@@ -44,4 +44,10 @@ identify_agent = "avail-light-client/rust-client"
 kad_connection_idle_timeout = 30
 # Sets the timeout for a single Kademlia query. (default: 60s).
 kad_query_timeout = 60
+# OpenTelemetry Collector endpoint (default: `http://otelcollector.avail.tools:4317`)
+ot_collector_endpoint = "http://otelcollector.avail.tools:4317"
+# Defines a period of time in which periodic metric network dump events will be repeated. (default: 15s)
+metrics_network_dump_interval = 15
+# Defines a period of time in which periodic bootstraps will be repeated. (default: 300s)
+bootstrap_period = 300
 ```
