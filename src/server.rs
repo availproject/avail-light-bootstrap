@@ -5,10 +5,11 @@ use warp::Filter;
 
 pub async fn run(addr: Addr) {
     let health_route = warp::head()
+        .or(warp::get())
         .and(warp::path("health"))
-        .map(|| warp::reply::with_status("", warp::http::StatusCode::OK));
+        .map(|_| warp::reply::with_status("", warp::http::StatusCode::OK));
 
-    info!("HTTP server running on http://{addr}");
+    info!("HTTP server running on http://{addr}. Health endpoint available at '/health'.");
 
     let socket_addr: SocketAddr = addr.try_into().unwrap();
 
