@@ -42,14 +42,14 @@ fn parse_log_lvl(log_lvl: &str, default: Level) -> (Level, Option<ParseLevelErro
 
 fn json_subscriber(log_lvl: Level) -> impl Subscriber + Send + Sync {
     FmtSubscriber::builder()
-        .with_env_filter(EnvFilter::new(format!("avail_light={log_lvl}")))
+        .with_env_filter(EnvFilter::new(format!("avail_light_bootstrap={log_lvl}")))
         .event_format(format::json())
         .finish()
 }
 
 fn default_subscriber(log_lvl: Level) -> impl Subscriber + Send + Sync {
     FmtSubscriber::builder()
-        .with_env_filter(EnvFilter::new(format!("avail_light={log_lvl}")))
+        .with_env_filter(EnvFilter::new(format!("avail_light_bootstrap={log_lvl}")))
         .with_span_events(format::FmtSpan::CLOSE)
         .finish()
 }
