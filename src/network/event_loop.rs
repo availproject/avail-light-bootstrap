@@ -14,7 +14,7 @@ use tokio::{
     sync::{mpsc, oneshot},
     time::{interval_at, Instant, Interval},
 };
-use tracing::{debug, error, info, trace};
+use tracing::{debug, info, trace};
 
 enum QueryChannel {
     Bootstrap(oneshot::Sender<Result<()>>),
@@ -79,7 +79,7 @@ impl EventLoop {
             }
         }
     }
-
+    #[tracing::instrument(level = "trace", skip(self))]
     async fn handle_event(&mut self, event: SwarmEvent<BehaviourEvent, StreamError>) {
         match event {
             SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad_event)) => match kad_event {
@@ -90,7 +90,7 @@ impl EventLoop {
                     old_peer,
                     ..
                 } => {
-                    debug!("Routing updated. Peer: {peer:?}. Is new Peer: {is_new_peer:?}. Addresses: {addresses:#?}. Old Peer: {old_peer:#?}");
+                    trace!("Routing updated. Peer: {peer:?}. Is new Peer: {is_new_peer:?}. Addresses: {addresses:#?}. Old Peer: {old_peer:#?}");
                     if let Some(ch) = self.pending_kad_routing.remove(&peer) {
                         _ = ch.send(Ok(()));
                     }
@@ -148,24 +148,24 @@ impl EventLoop {
             SwarmEvent::Behaviour(BehaviourEvent::AutoNat(autonat_event)) => match autonat_event {
                 AutoNATEvent::InboundProbe(inbound_event) => match inbound_event {
                     InboundProbeEvent::Error { peer, error, .. } => {
-                        error!(
+                        debug!(
                             "AutoNAT Inbound Probe failed with Peer: {:?}. Error: {:?}.",
                             peer, error
                         );
                     }
                     _ => {
-                        debug!("AutoNAT Inbound Probe: {:#?}", inbound_event);
+                        trace!("AutoNAT Inbound Probe: {:#?}", inbound_event);
                     }
                 },
                 AutoNATEvent::OutboundProbe(outbound_event) => match outbound_event {
                     OutboundProbeEvent::Error { peer, error, .. } => {
-                        error!(
+                        debug!(
                             "AutoNAT Outbound Probe failed with Peer: {:#?}. Error: {:?}",
                             peer, error
                         );
                     }
                     _ => {
-                        debug!("AutoNAT Outbound Probe: {:#?}", outbound_event);
+                        trace!("AutoNAT Outbound Probe: {:#?}", outbound_event);
                     }
                 },
 
