@@ -11,10 +11,10 @@ use clap::Parser;
 use libp2p::{multiaddr::Protocol, Multiaddr};
 use std::{net::Ipv4Addr, time::Duration};
 use tokio::time::{interval_at, Instant};
-use tracing::{error, info, metadata::ParseLevelError, warn, Level};
+use tracing::{error, info, metadata::ParseLevelError, warn, Level, Subscriber};
 use tracing_subscriber::{
-    fmt::format::{self, DefaultFields, Format, Full, Json},
-    FmtSubscriber,
+    fmt::format::{self},
+    EnvFilter, FmtSubscriber,
 };
 use types::RuntimeConfig;
 
@@ -40,16 +40,16 @@ fn parse_log_lvl(log_lvl: &str, default: Level) -> (Level, Option<ParseLevelErro
         .unwrap_or_else(|err| (default, Some(err)))
 }
 
-fn json_subscriber(log_lvl: Level) -> FmtSubscriber<DefaultFields, Format<Json>> {
+fn json_subscriber(log_lvl: Level) -> impl Subscriber + Send + Sync {
     FmtSubscriber::builder()
-        .with_max_level(log_lvl)
+        .with_env_filter(EnvFilter::new(format!("avail_light_bootstrap={log_lvl}")))
         .event_format(format::json())
         .finish()
 }
 
-fn default_subscriber(log_lvl: Level) -> FmtSubscriber<DefaultFields, Format<Full>> {
+fn default_subscriber(log_lvl: Level) -> impl Subscriber + Send + Sync {
     FmtSubscriber::builder()
-        .with_max_level(log_lvl)
+        .with_env_filter(EnvFilter::new(format!("avail_light_bootstrap={log_lvl}")))
         .with_span_events(format::FmtSpan::CLOSE)
         .finish()
 }
