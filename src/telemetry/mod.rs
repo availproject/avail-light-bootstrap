@@ -1,7 +1,7 @@
-pub mod otlp;
-
 use anyhow::Result;
 use async_trait::async_trait;
+
+pub mod otlp;
 
 pub enum MetricValue {
     KadRoutingPeerNum(usize),
