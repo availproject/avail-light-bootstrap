@@ -1,7 +1,6 @@
-use std::{fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
-
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
+use std::{fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -23,15 +22,15 @@ pub struct RuntimeConfig {
     pub log_format_json: bool,
     /// Sets the listening P2P network service port. (default: 39000)
     pub port: u16,
+    /// Sets the amount of time to keep connections alive when they're idle. (default: 30s).
+    /// NOTE: libp2p default value is 10s, but because of Avail block time of 20s the value has been increased
+    pub connection_idle_timeout: u64,
     /// Sets application-specific version of the protocol family used by the peer. (default: "/avail_kad/id/1.0.0")
     pub identify_protocol: String,
     /// Sets agent version that is sent to peers in the network. (default: "avail-light-client/rust-client")
     pub identify_agent: String,
     /// Configures AutoNAT behaviour to reject probes as a server for clients that are observed at a non-global ip address (default: false)
     pub autonat_only_global_ips: bool,
-    /// Sets the amount of time to keep connections alive when they're idle. (default: 30s).
-    /// NOTE: libp2p default value is 10s, but because of Avail block time of 20s the value has been increased
-    pub kad_connection_idle_timeout: u32,
     /// Sets the timeout for a single Kademlia query. (default: 60s).
     pub kad_query_timeout: u32,
     /// Defines a period of time in which periodic bootstraps will be repeated. (default: 300s)
@@ -56,6 +55,7 @@ pub struct LibP2PConfig {
     pub kademlia: KademliaConfig,
     pub secret_key: Option<SecretKey>,
     pub bootstrap_interval: Duration,
+    pub connection_idle_timeout: Duration,
 }
 
 impl From<&RuntimeConfig> for LibP2PConfig {
@@ -68,20 +68,19 @@ impl From<&RuntimeConfig> for LibP2PConfig {
             kademlia: rtcfg.into(),
             secret_key: rtcfg.secret_key.clone(),
             bootstrap_interval: Duration::from_secs(rtcfg.bootstrap_period),
+            connection_idle_timeout: Duration::from_secs(rtcfg.connection_idle_timeout),
         }
     }
 }
 
 /// Kademlia configuration (see [RuntimeConfig] for details)
 pub struct KademliaConfig {
-    pub connection_idle_timeout: Duration,
     pub query_timeout: Duration,
 }
 
 impl From<&RuntimeConfig> for KademliaConfig {
     fn from(val: &RuntimeConfig) -> Self {
         KademliaConfig {
-            connection_idle_timeout: Duration::from_secs(val.kad_connection_idle_timeout.into()),
             query_timeout: Duration::from_secs(val.kad_query_timeout.into()),
         }
     }
@@ -101,7 +100,7 @@ impl Default for RuntimeConfig {
             autonat_only_global_ips: false,
             identify_protocol: "/avail_kad/id/1.0.0".to_string(),
             identify_agent: "avail-light-client/rust-client".to_string(),
-            kad_connection_idle_timeout: 30,
+            connection_idle_timeout: 30,
             kad_query_timeout: 60,
             bootstrap_period: 300,
             ot_collector_endpoint: "http://otelcollector.avail.tools:4317".to_string(),
