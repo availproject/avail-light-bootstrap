@@ -181,17 +181,12 @@ impl EventLoop {
                 ..
             } => {
                 trace!("Connection closed. PeerID: {peer_id:?}. Address: {:?}. Num established: {num_established:?}. Cause: {cause:?}.", endpoint.get_remote_address());
-                if let Some(cause) = cause {
-                    match cause {
-                        // remove peers with failed connections
-                        ConnectionError::IO(_) => {
-                            self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
-                        } // ignore Keep Alive timeout errors
-                        // allow redials for this type of error
-                        _ => {}
-                    }
+                if let Some(ConnectionError::IO(_)) = cause {
+                    // remove peers with failed connections
+                    self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
                 }
             }
+
             SwarmEvent::OutgoingConnectionError {
                 peer_id: Some(peer_id),
                 ..

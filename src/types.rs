@@ -118,7 +118,7 @@ impl From<&RuntimeConfig> for Addr {
     fn from(value: &RuntimeConfig) -> Self {
         Addr {
             host: value.http_server_host.clone(),
-            port: value.http_server_port.clone(),
+            port: value.http_server_port,
         }
     }
 }
