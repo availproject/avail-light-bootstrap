@@ -13,7 +13,7 @@ use tokio::{
     sync::{mpsc, oneshot},
     time::{interval_at, Instant, Interval},
 };
-use tracing::{debug, info, trace};
+use tracing::{debug, trace};
 
 use super::{client::Command, Behaviour, BehaviourEvent};
 
