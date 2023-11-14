@@ -4,9 +4,9 @@ use libp2p::{
     identity::Keypair,
     kad::{self, store::MemoryStore, Mode},
     multiaddr::Protocol,
-    ping,
+    noise, ping,
     swarm::NetworkBehaviour,
-    Multiaddr, PeerId, SwarmBuilder,
+    tcp, yamux, Multiaddr, PeerId, SwarmBuilder,
 };
 use multihash::Hasher;
 use tokio::sync::mpsc;
@@ -39,6 +39,11 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
 
     let mut swarm = SwarmBuilder::with_existing_identity(id_keys)
         .with_tokio()
+        .with_tcp(
+            tcp::Config::default().nodelay(true),
+            noise::Config::new,
+            yamux::Config::default,
+        )?
         .with_quic()
         .with_dns()?
         .with_behaviour(|key| {
