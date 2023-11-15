@@ -1,7 +1,8 @@
-use crate::types::Addr;
 use std::net::SocketAddr;
 use tracing::info;
 use warp::Filter;
+
+use crate::types::Addr;
 
 pub async fn run(addr: Addr) {
     let health_route = warp::head()

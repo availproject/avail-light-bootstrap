@@ -1,12 +1,11 @@
-use super::{client::Command, Behaviour, BehaviourEvent};
 use anyhow::Result;
 use libp2p::{
-    autonat::{Event as AutoNATEvent, InboundProbeEvent, OutboundProbeEvent},
+    autonat::{self, InboundProbeEvent, OutboundProbeEvent},
     futures::StreamExt,
     identify::{Event as IdentifyEvent, Info},
-    kad::{BootstrapOk, KademliaEvent, QueryId, QueryResult},
+    kad::{self, BootstrapOk, QueryId, QueryResult},
     multiaddr::Protocol,
-    swarm::{derive_prelude::Either, ConnectionError, SwarmEvent},
+    swarm::{ConnectionError, SwarmEvent},
     Multiaddr, PeerId, Swarm,
 };
 use std::{collections::HashMap, time::Duration};
@@ -14,7 +13,9 @@ use tokio::{
     sync::{mpsc, oneshot},
     time::{interval_at, Instant, Interval},
 };
-use tracing::{debug, info, trace};
+use tracing::{debug, trace};
+
+use super::{client::Command, Behaviour, BehaviourEvent};
 
 enum QueryChannel {
     Bootstrap(oneshot::Sender<Result<()>>),
@@ -41,10 +42,6 @@ pub struct EventLoop {
     pending_swarm_events: HashMap<PeerId, SwarmChannel>,
     bootstrap: BootstrapState,
 }
-
-type IoError = Either<std::io::Error, std::io::Error>;
-type IoOrVoid = Either<IoError, void::Void>;
-type StreamError = Either<IoOrVoid, void::Void>;
 
 impl EventLoop {
     pub fn new(
@@ -80,10 +77,10 @@ impl EventLoop {
         }
     }
     #[tracing::instrument(level = "trace", skip(self))]
-    async fn handle_event(&mut self, event: SwarmEvent<BehaviourEvent, StreamError>) {
+    async fn handle_event(&mut self, event: SwarmEvent<BehaviourEvent>) {
         match event {
             SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad_event)) => match kad_event {
-                KademliaEvent::RoutingUpdated {
+                kad::Event::RoutingUpdated {
                     peer,
                     is_new_peer,
                     addresses,
@@ -95,7 +92,7 @@ impl EventLoop {
                         _ = ch.send(Ok(()));
                     }
                 }
-                KademliaEvent::OutboundQueryProgressed {
+                kad::Event::OutboundQueryProgressed {
                     id,
                     result: QueryResult::Bootstrap(bootstrap_result),
                     ..
@@ -146,7 +143,7 @@ impl EventLoop {
                     });
             }
             SwarmEvent::Behaviour(BehaviourEvent::AutoNat(autonat_event)) => match autonat_event {
-                AutoNATEvent::InboundProbe(inbound_event) => match inbound_event {
+                autonat::Event::InboundProbe(inbound_event) => match inbound_event {
                     InboundProbeEvent::Error { peer, error, .. } => {
                         debug!(
                             "AutoNAT Inbound Probe failed with Peer: {:?}. Error: {:?}.",
@@ -157,7 +154,7 @@ impl EventLoop {
                         trace!("AutoNAT Inbound Probe: {:#?}", inbound_event);
                     }
                 },
-                AutoNATEvent::OutboundProbe(outbound_event) => match outbound_event {
+                autonat::Event::OutboundProbe(outbound_event) => match outbound_event {
                     OutboundProbeEvent::Error { peer, error, .. } => {
                         debug!(
                             "AutoNAT Outbound Probe failed with Peer: {:#?}. Error: {:?}",
@@ -169,7 +166,7 @@ impl EventLoop {
                     }
                 },
 
-                AutoNATEvent::StatusChanged { old, new } => {
+                autonat::Event::StatusChanged { old, new } => {
                     debug!(
                         "AutoNAT Old status: {:#?}. AutoNAT New status: {:#?}",
                         old, new
@@ -184,17 +181,12 @@ impl EventLoop {
                 ..
             } => {
                 trace!("Connection closed. PeerID: {peer_id:?}. Address: {:?}. Num established: {num_established:?}. Cause: {cause:?}.", endpoint.get_remote_address());
-                if let Some(cause) = cause {
-                    match cause {
-                        // remove peers with failed connections
-                        ConnectionError::IO(_) | ConnectionError::Handler(_) => {
-                            self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
-                        } // ignore Keep Alive timeout errors
-                        // allow redials for this type of error
-                        _ => {}
-                    }
+                if let Some(ConnectionError::IO(_)) = cause {
+                    // remove peers with failed connections
+                    self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
                 }
             }
+
             SwarmEvent::OutgoingConnectionError {
                 peer_id: Some(peer_id),
                 ..
@@ -225,7 +217,7 @@ impl EventLoop {
             }
             SwarmEvent::NewListenAddr { address, .. } => {
                 let local_peer_id = *self.swarm.local_peer_id();
-                info!(
+                debug!(
                     "Local node is listening on: {:?}",
                     address.with(Protocol::P2p(local_peer_id))
                 )
