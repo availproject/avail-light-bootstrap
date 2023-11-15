@@ -133,7 +133,7 @@ async fn run() -> Result<()> {
         cfg.port
     );
 
-    // Listen on all interfaces with QUIC
+    // Listen on all interfaces with TCP
     network_client
         .start_listening(
             Multiaddr::empty()
