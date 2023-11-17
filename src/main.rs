@@ -18,7 +18,7 @@ mod server;
 mod telemetry;
 mod types;
 
-const CLIENT_ROLE: &str = "bootstrap_node";
+const CLIENT_ROLE: &str = "bootnode";
 
 #[derive(Debug, Parser)]
 #[clap(name = "Avail Bootstrap Node")]
