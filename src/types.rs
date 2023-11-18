@@ -35,7 +35,7 @@ pub struct RuntimeConfig {
     pub kad_query_timeout: u32,
     /// Defines a period of time in which periodic bootstraps will be repeated. (default: 300s)
     pub bootstrap_period: u64,
-    /// OpenTelemetry Collector endpoint (default: http://otelcollector.avail.tools:4317)
+    /// OpenTelemetry Collector endpoint (default: http://127.0.0.1:4317)
     pub ot_collector_endpoint: String,
     /// Defines a period of time in which periodic metric network dump events will be repeated. (default: 15s)
     pub metrics_network_dump_interval: u64,
@@ -45,6 +45,7 @@ pub struct RuntimeConfig {
     /// If `secret_key` is not set, random seed will be used.
     /// Default bootstrap peerID is 12D3KooWStAKPADXqJ7cngPYXd2mSANpdgh1xQ34aouufHA2xShz
     pub secret_key: Option<SecretKey>,
+    pub origin: String,
 }
 
 pub struct LibP2PConfig {
@@ -103,8 +104,9 @@ impl Default for RuntimeConfig {
             connection_idle_timeout: 30,
             kad_query_timeout: 60,
             bootstrap_period: 300,
-            ot_collector_endpoint: "http://otelcollector.avail.tools:4317".to_string(),
+            ot_collector_endpoint: "http://127.0.0.1:4317".to_string(),
             metrics_network_dump_interval: 15,
+            origin: "external".to_string(),
         }
     }
 }
