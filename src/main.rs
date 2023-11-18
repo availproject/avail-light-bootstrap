@@ -18,7 +18,7 @@ mod server;
 mod telemetry;
 mod types;
 
-const CLIENT_ROLE: &str = "bootstrap_node";
+const CLIENT_ROLE: &str = "bootnode";
 
 #[derive(Debug, Parser)]
 #[clap(name = "Avail Bootstrap Node")]
@@ -82,9 +82,13 @@ async fn run() -> Result<()> {
 
     tokio::spawn(server::run((&cfg).into()));
 
-    let ot_metrics =
-        telemetry::otlp::initialize(cfg.ot_collector_endpoint, peer_id, CLIENT_ROLE.into())
-            .context("Cannot initialize OpenTelemetry service.")?;
+    let ot_metrics = telemetry::otlp::initialize(
+        cfg.ot_collector_endpoint,
+        peer_id,
+        CLIENT_ROLE.into(),
+        cfg.origin,
+    )
+    .context("Cannot initialize OpenTelemetry service.")?;
 
     // Spawn the network task
     let loop_handle = tokio::spawn(network_event_loop.run());
