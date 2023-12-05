@@ -23,13 +23,8 @@ const CLIENT_ROLE: &str = "bootnode";
 #[derive(Debug, Parser)]
 #[clap(name = "Avail Bootstrap Node")]
 struct CliOpts {
-    #[clap(
-        long,
-        short = 'c',
-        default_value = "config.yaml",
-        help = "yaml configuration file"
-    )]
-    config: String,
+    #[clap(long, short = 'c', help = "yaml configuration file")]
+    config: Option<String>,
 }
 
 fn parse_log_lvl(log_lvl: &str, default: Level) -> (Level, Option<ParseLevelError>) {
@@ -56,9 +51,11 @@ fn default_subscriber(log_lvl: Level) -> impl Subscriber + Send + Sync {
 
 async fn run() -> Result<()> {
     let opts = CliOpts::parse();
-    let cfg_path = &opts.config;
-    let cfg: RuntimeConfig = confy::load_path(cfg_path)
-        .context(format!("Failed to load configuration from path {cfg_path}"))?;
+    let mut cfg = RuntimeConfig::default();
+    if let Some(cfg_path) = &opts.config {
+        cfg = confy::load_path(cfg_path)
+            .context(format!("Failed to load configuration from path {cfg_path}"))?;
+    }
 
     let (log_lvl, parse_err) = parse_log_lvl(&cfg.log_level, Level::INFO);
     // set json trace format
