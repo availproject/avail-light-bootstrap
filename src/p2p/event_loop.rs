@@ -34,6 +34,12 @@ struct BootstrapState {
     timer: Interval,
 }
 
+// Identity strings used for peer filtering
+pub struct IdentityData {
+    pub agent_version: String,
+    pub protocol_version: String,
+}
+
 pub struct EventLoop {
     swarm: Swarm<Behaviour>,
     command_receiver: mpsc::Receiver<Command>,
@@ -41,6 +47,7 @@ pub struct EventLoop {
     pending_kad_routing: HashMap<PeerId, oneshot::Sender<Result<()>>>,
     pending_swarm_events: HashMap<PeerId, SwarmChannel>,
     bootstrap: BootstrapState,
+    identity_data: IdentityData,
 }
 
 impl EventLoop {
@@ -48,6 +55,7 @@ impl EventLoop {
         swarm: Swarm<Behaviour>,
         command_receiver: mpsc::Receiver<Command>,
         bootstrap_interval: Duration,
+        identity_data: IdentityData,
     ) -> Self {
         Self {
             swarm,
@@ -59,6 +67,7 @@ impl EventLoop {
                 is_startup_done: false,
                 timer: interval_at(Instant::now() + bootstrap_interval, bootstrap_interval),
             },
+            identity_data,
         }
     }
 
@@ -127,20 +136,31 @@ impl EventLoop {
             },
             SwarmEvent::Behaviour(BehaviourEvent::Identify(IdentifyEvent::Received {
                 peer_id,
-                info: Info { listen_addrs, .. },
+                info:
+                    Info {
+                        listen_addrs,
+                        agent_version,
+                        protocol_version,
+                        ..
+                    },
             })) => {
                 debug!("Identity received from: {peer_id:?} on listen address: {listen_addrs:?}");
                 // interested in addresses with actual Multiaddresses
                 // containing proper 'p2p' protocol tag
-                listen_addrs
-                    .iter()
-                    .filter(|a| a.to_string().contains(Protocol::P2p(peer_id).tag()))
-                    .for_each(|a| {
+                if agent_version != self.identity_data.agent_version
+                    && protocol_version != self.identity_data.protocol_version
+                {
+                    debug!("Removing and blocking non-avail peer from routing table. Peer: {peer_id}. Agent: {agent_version}. Protocol: {protocol_version}");
+                    self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
+                    self.swarm.behaviour_mut().blocked_peers.block_peer(peer_id);
+                } else {
+                    for addr in listen_addrs {
                         self.swarm
                             .behaviour_mut()
                             .kademlia
-                            .add_address(&peer_id, a.clone());
-                    });
+                            .add_address(&peer_id, addr);
+                    }
+                }
             }
             SwarmEvent::Behaviour(BehaviourEvent::AutoNat(autonat_event)) => match autonat_event {
                 autonat::Event::InboundProbe(inbound_event) => match inbound_event {

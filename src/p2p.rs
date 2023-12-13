@@ -1,3 +1,4 @@
+use allow_block_list::BlockedPeers;
 use anyhow::{Context, Result};
 use libp2p::{
     autonat, identify,
@@ -6,7 +7,7 @@ use libp2p::{
     multiaddr::Protocol,
     noise, ping,
     swarm::NetworkBehaviour,
-    tcp, yamux, Multiaddr, PeerId, SwarmBuilder,
+    tcp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
 };
 use multihash::Hasher;
 use tokio::sync::mpsc;
@@ -15,10 +16,14 @@ mod client;
 mod event_loop;
 
 use crate::{
-    p2p::client::{Client, Command},
+    p2p::{
+        client::{Client, Command},
+        event_loop::IdentityData,
+    },
     types::{LibP2PConfig, SecretKey},
 };
 use event_loop::EventLoop;
+use libp2p_allow_block_list as allow_block_list;
 use tracing::info;
 
 #[derive(NetworkBehaviour)]
@@ -27,6 +32,7 @@ pub struct Behaviour {
     identify: identify::Behaviour,
     auto_nat: autonat::Behaviour,
     ping: ping::Behaviour,
+    blocked_peers: allow_block_list::Behaviour<BlockedPeers>,
 }
 
 pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> {
@@ -36,6 +42,11 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
         local_peer_id,
         id_keys.public()
     );
+
+    // Use identify protocol_version as Kademlia protocol name
+    let kademlia_protocol_name =
+        StreamProtocol::try_from_owned(cfg.identify_protocol_version.clone())
+            .expect("Invalid Kademlia protocol name");
 
     let mut swarm = SwarmBuilder::with_existing_identity(id_keys)
         .with_tokio()
@@ -51,11 +62,14 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
             let kad_store = MemoryStore::new(key.public().to_peer_id());
             // create Kademlia Config
             let mut kad_cfg = kad::Config::default();
-            kad_cfg.set_query_timeout(cfg.kademlia.query_timeout);
+            kad_cfg
+                .set_query_timeout(cfg.kademlia.query_timeout)
+                .set_protocol_names(vec![kademlia_protocol_name]);
 
             // create Identify Protocol Config
-            let identify_cfg = identify::Config::new(cfg.identify_protocol_version, key.public())
-                .with_agent_version(cfg.identify_agent_version);
+            let identify_cfg =
+                identify::Config::new(cfg.identify_protocol_version.clone(), key.public())
+                    .with_agent_version(cfg.identify_agent_version.clone());
 
             // create AutoNAT Server Config
             let autonat_cfg = autonat::Config {
@@ -72,6 +86,7 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
                 identify: identify::Behaviour::new(identify_cfg),
                 auto_nat: autonat::Behaviour::new(local_peer_id, autonat_cfg),
                 ping: ping::Behaviour::new(ping::Config::new()),
+                blocked_peers: allow_block_list::Behaviour::default(),
             }
         })?
         .with_swarm_config(|c| c.with_idle_connection_timeout(cfg.connection_idle_timeout))
@@ -85,7 +100,15 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
 
     Ok((
         Client::new(command_sender),
-        EventLoop::new(swarm, command_receiver, cfg.bootstrap_interval),
+        EventLoop::new(
+            swarm,
+            command_receiver,
+            cfg.bootstrap_interval,
+            IdentityData {
+                agent_version: cfg.identify_agent_version.clone(),
+                protocol_version: cfg.identify_protocol_version.clone(),
+            },
+        ),
     ))
 }
 

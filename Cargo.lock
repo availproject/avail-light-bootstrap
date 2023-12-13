@@ -397,6 +397,7 @@ dependencies = [
  "confy",
  "hex",
  "libp2p",
+ "libp2p-allow-block-list",
  "multihash 0.14.0",
  "opentelemetry",
  "opentelemetry-otlp",
