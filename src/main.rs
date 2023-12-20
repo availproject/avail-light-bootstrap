@@ -128,10 +128,7 @@ async fn run() -> Result<()> {
         )
         .await
         .context("Listening on TCP not to fail.")?;
-    info!(
-        "Started listening for TCP traffic on port: {:?}.",
-        cfg.port + 1
-    );
+    info!("Started listening for TCP traffic on port: {:?}.", cfg.port);
 
     info!("Bootstrap node starting ...");
     network_client.bootstrap().await?;
