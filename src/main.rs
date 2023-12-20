@@ -119,27 +119,12 @@ async fn run() -> Result<()> {
         }
     });
 
-    // Listen on all interfaces with QUIC
-    network_client
-        .start_listening(
-            Multiaddr::empty()
-                .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
-                .with(Protocol::Udp(cfg.port))
-                .with(Protocol::QuicV1),
-        )
-        .await
-        .context("Listening on UDP not to fail.")?;
-    info!(
-        "Started listening for QUIC traffic on port: {:?}.",
-        cfg.port
-    );
-
     // Listen on all interfaces with TCP
     network_client
         .start_listening(
             Multiaddr::empty()
                 .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
-                .with(Protocol::Tcp(cfg.port + 1)),
+                .with(Protocol::Tcp(cfg.port)),
         )
         .await
         .context("Listening on TCP not to fail.")?;
