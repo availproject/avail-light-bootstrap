@@ -1,6 +1,15 @@
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
+use std::{
+    fmt::{self, Display},
+    net::SocketAddr,
+    str::FromStr,
+    time::Duration,
+};
+
+pub const IDENTITY_PROTOCOL: &str = "/avail_kad/id/1.0.0";
+pub const IDENTITY_AGENT_BASE: &str = "avail-light-client";
+pub const IDENTITY_AGENT_CLIENT_TYPE: &str = "rust-client";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -25,10 +34,6 @@ pub struct RuntimeConfig {
     /// Sets the amount of time to keep connections alive when they're idle. (default: 30s).
     /// NOTE: libp2p default value is 10s, but because of Avail block time of 20s the value has been increased
     pub connection_idle_timeout: u64,
-    /// Sets application-specific version of the protocol family used by the peer. (default: "/avail_kad/id/1.0.0")
-    pub identify_protocol: String,
-    /// Sets agent version that is sent to peers in the network. (default: "avail-light-client/rust-client")
-    pub identify_agent: String,
     /// Configures AutoNAT behaviour to reject probes as a server for clients that are observed at a non-global ip address (default: false)
     pub autonat_only_global_ips: bool,
     /// Sets the timeout for a single Kademlia query. (default: 60s).
@@ -46,13 +51,14 @@ pub struct RuntimeConfig {
     /// Default bootstrap peerID is 12D3KooWStAKPADXqJ7cngPYXd2mSANpdgh1xQ34aouufHA2xShz
     pub secret_key: Option<SecretKey>,
     pub origin: String,
+    /// Genesis hash of the network to be connected to. Set to a string beginning with "DEV" to connect to any network.
+    pub genesis_hash: String,
 }
 
 pub struct LibP2PConfig {
     pub port: u16,
     pub autonat_only_global_ips: bool,
-    pub identify_agent_version: String,
-    pub identify_protocol_version: String,
+    pub identify: IdentifyConfig,
     pub kademlia: KademliaConfig,
     pub secret_key: Option<SecretKey>,
     pub bootstrap_interval: Duration,
@@ -64,8 +70,7 @@ impl From<&RuntimeConfig> for LibP2PConfig {
         Self {
             port: rtcfg.port,
             autonat_only_global_ips: rtcfg.autonat_only_global_ips,
-            identify_agent_version: rtcfg.identify_agent.clone(),
-            identify_protocol_version: rtcfg.identify_protocol.clone(),
+            identify: rtcfg.into(),
             kademlia: rtcfg.into(),
             secret_key: rtcfg.secret_key.clone(),
             bootstrap_interval: Duration::from_secs(rtcfg.bootstrap_period),
@@ -99,14 +104,13 @@ impl Default for RuntimeConfig {
             }),
             port: 39000,
             autonat_only_global_ips: false,
-            identify_protocol: "/avail_kad/id/1.0.0".to_string(),
-            identify_agent: "avail-light-client/rust-client".to_string(),
             connection_idle_timeout: 30,
             kad_query_timeout: 60,
             bootstrap_period: 300,
             ot_collector_endpoint: "http://127.0.0.1:4317".to_string(),
             metrics_network_dump_interval: 15,
             origin: "external".to_string(),
+            genesis_hash: "DEV".to_owned(),
         }
     }
 }
@@ -136,5 +140,68 @@ impl TryInto<SocketAddr> for Addr {
 impl Display for Addr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}", self.host, self.port)
+    }
+}
+
+pub struct IdentifyConfig {
+    pub agent_version: AgentVersion,
+    /// Contains Avail genesis hash
+    pub protocol_version: String,
+}
+
+pub struct AgentVersion {
+    pub base_version: String,
+    pub client_type: String,
+    // Kademlia client or server mode
+    pub kademlia_mode: String,
+}
+
+impl fmt::Display for AgentVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}/{}/{}",
+            self.base_version, self.client_type, self.kademlia_mode
+        )
+    }
+}
+
+impl FromStr for AgentVersion {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split('/').collect();
+        if parts.len() != 3 {
+            return Err("Failed to parse agent version".to_owned());
+        }
+
+        Ok(AgentVersion {
+            base_version: parts[0].to_string(),
+            client_type: parts[1].to_string(),
+            kademlia_mode: parts[2].to_string(),
+        })
+    }
+}
+
+impl From<&RuntimeConfig> for IdentifyConfig {
+    fn from(val: &RuntimeConfig) -> Self {
+        let mut genhash_short = val.genesis_hash.trim_start_matches("0x").to_string();
+        genhash_short.truncate(6);
+
+        let agent_version = AgentVersion {
+            base_version: IDENTITY_AGENT_BASE.to_string(),
+            client_type: IDENTITY_AGENT_CLIENT_TYPE.to_string(),
+            // Bootstrap should only be in server mode
+            kademlia_mode: "server".to_string(),
+        };
+
+        Self {
+            agent_version,
+            protocol_version: format!(
+                "{id}-{gen_hash}",
+                id = IDENTITY_PROTOCOL,
+                gen_hash = genhash_short
+            ),
+        }
     }
 }
