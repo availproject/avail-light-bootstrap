@@ -16,10 +16,7 @@ mod client;
 mod event_loop;
 
 use crate::{
-    p2p::{
-        client::{Client, Command},
-        event_loop::IdentityData,
-    },
+    p2p::client::{Client, Command},
     types::{LibP2PConfig, SecretKey},
 };
 use event_loop::EventLoop;
@@ -45,7 +42,7 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
 
     // Use identify protocol_version as Kademlia protocol name
     let kademlia_protocol_name =
-        StreamProtocol::try_from_owned(cfg.identify_protocol_version.clone())
+        StreamProtocol::try_from_owned(cfg.identify.protocol_version.clone())
             .expect("Invalid Kademlia protocol name");
 
     let mut swarm = SwarmBuilder::with_existing_identity(id_keys)
@@ -68,8 +65,8 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
 
             // create Identify Protocol Config
             let identify_cfg =
-                identify::Config::new(cfg.identify_protocol_version.clone(), key.public())
-                    .with_agent_version(cfg.identify_agent_version.clone());
+                identify::Config::new(cfg.identify.protocol_version.clone(), key.public())
+                    .with_agent_version(cfg.identify.agent_version.to_string());
 
             // create AutoNAT Server Config
             let autonat_cfg = autonat::Config {
@@ -104,10 +101,7 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
             swarm,
             command_receiver,
             cfg.bootstrap_interval,
-            IdentityData {
-                agent_version: cfg.identify_agent_version.clone(),
-                protocol_version: cfg.identify_protocol_version.clone(),
-            },
+            cfg.identify,
         ),
     ))
 }
