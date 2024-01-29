@@ -70,7 +70,10 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
 
             // create AutoNAT Server Config
             let autonat_cfg = autonat::Config {
-                only_global_ips: cfg.autonat_only_global_ips,
+                only_global_ips: cfg.autonat.only_global_ips,
+                throttle_clients_global_max: cfg.autonat.throttle_clients_global_max,
+                throttle_clients_peer_max: cfg.autonat.throttle_clients_peer_max,
+                throttle_clients_period: cfg.autonat.throttle_clients_period,
                 ..Default::default()
             };
 

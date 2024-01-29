@@ -34,7 +34,13 @@ pub struct RuntimeConfig {
     /// Sets the amount of time to keep connections alive when they're idle. (default: 30s).
     /// NOTE: libp2p default value is 10s, but because of Avail block time of 20s the value has been increased
     pub connection_idle_timeout: u64,
-    /// Configures AutoNAT behaviour to reject probes as a server for clients that are observed at a non-global ip address (default: false)
+    /// Autonat server config - max total dial requests (Default: 30).
+    pub autonat_throttle_clients_global_max: usize,
+    /// Autonat server config - max dial requests for a single peer (Default: 3).
+    pub autonat_throttle_clients_peer_max: usize,
+    /// Autonat server config - period for throttling clients requests (Default 1s).
+    pub autonat_throttle_clients_period: u32,
+    /// Autonat server config - configures AutoNAT behaviour to reject probes as a server for clients that are observed at a non-global ip address (default: true)
     pub autonat_only_global_ips: bool,
     /// Sets the timeout for a single Kademlia query. (default: 60s).
     pub kad_query_timeout: u32,
@@ -57,7 +63,7 @@ pub struct RuntimeConfig {
 
 pub struct LibP2PConfig {
     pub port: u16,
-    pub autonat_only_global_ips: bool,
+    pub autonat: AutonatConfig,
     pub identify: IdentifyConfig,
     pub kademlia: KademliaConfig,
     pub secret_key: Option<SecretKey>,
@@ -69,7 +75,7 @@ impl From<&RuntimeConfig> for LibP2PConfig {
     fn from(rtcfg: &RuntimeConfig) -> Self {
         Self {
             port: rtcfg.port,
-            autonat_only_global_ips: rtcfg.autonat_only_global_ips,
+            autonat: rtcfg.into(),
             identify: rtcfg.into(),
             kademlia: rtcfg.into(),
             secret_key: rtcfg.secret_key.clone(),
@@ -92,6 +98,26 @@ impl From<&RuntimeConfig> for KademliaConfig {
     }
 }
 
+pub struct AutonatConfig {
+    pub throttle_clients_global_max: usize,
+    pub throttle_clients_peer_max: usize,
+    pub throttle_clients_period: Duration,
+    pub only_global_ips: bool,
+}
+
+impl From<&RuntimeConfig> for AutonatConfig {
+    fn from(val: &RuntimeConfig) -> Self {
+        AutonatConfig {
+            throttle_clients_global_max: val.autonat_throttle_clients_global_max,
+            throttle_clients_peer_max: val.autonat_throttle_clients_peer_max,
+            throttle_clients_period: Duration::from_secs(
+                val.autonat_throttle_clients_period.into(),
+            ),
+            only_global_ips: val.autonat_only_global_ips,
+        }
+    }
+}
+
 impl Default for RuntimeConfig {
     fn default() -> Self {
         RuntimeConfig {
@@ -103,7 +129,10 @@ impl Default for RuntimeConfig {
                 seed: "1".to_string(),
             }),
             port: 39000,
-            autonat_only_global_ips: false,
+            autonat_throttle_clients_global_max: 120,
+            autonat_throttle_clients_peer_max: 4,
+            autonat_throttle_clients_period: 1,
+            autonat_only_global_ips: true,
             connection_idle_timeout: 30,
             kad_query_timeout: 60,
             bootstrap_period: 300,
