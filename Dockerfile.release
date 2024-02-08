@@ -6,7 +6,7 @@ ARG BUILDPLATFORM
 WORKDIR /var/lib/avail-light
 
 ARG IMAGE_TAG=v0.0.9
-ARG AVAIL_LC_BIN=https://github.com/availproject/avail-light-bootstrap/releases/download/$IMAGE_TAG/avail-light-linux-$TARGETARCH.tar.gz
+ARG AVAIL_LC_BIN=https://github.com/availproject/avail-light-bootstrap/releases/download/$IMAGE_TAG/avail-light-bootstrap-linux-$TARGETARCH.tar.gz
 
 RUN adduser --disabled-password --gecos "" --no-create-home --uid 1000 avail \
     && apt update && apt install wget -y \
