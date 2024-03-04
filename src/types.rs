@@ -31,6 +31,8 @@ pub struct RuntimeConfig {
     pub log_format_json: bool,
     /// Sets the listening P2P network service port. (default: 39000)
     pub port: u16,
+    /// Enable WebSocket transport over TCP
+    pub ws_transport_enable: bool,
     /// Sets the amount of time to keep connections alive when they're idle. (default: 30s).
     /// NOTE: libp2p default value is 10s, but because of Avail block time of 20s the value has been increased
     pub connection_idle_timeout: u64,
@@ -129,6 +131,7 @@ impl Default for RuntimeConfig {
                 seed: "1".to_string(),
             }),
             port: 39000,
+            ws_transport_enable: false,
             autonat_throttle_clients_global_max: 120,
             autonat_throttle_clients_peer_max: 4,
             autonat_throttle_clients_period: 1,

@@ -12,5 +12,4 @@ pub enum MetricValue {
 pub trait Metrics {
     async fn record(&self, value: MetricValue) -> Result<()>;
     async fn set_multiaddress(&self, multiaddrs: String);
-    async fn set_ip(&self, ip: String);
 }
