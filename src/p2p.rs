@@ -2,7 +2,7 @@ use allow_block_list::BlockedPeers;
 use anyhow::{Context, Result};
 use libp2p::{
     autonat, identify,
-    identity::Keypair,
+    identity::{self, Keypair},
     kad::{self, store::MemoryStore, Mode},
     noise, ping,
     swarm::NetworkBehaviour,
@@ -75,21 +75,21 @@ pub async fn init(
 
     let mut swarm;
 
+    let behaviour = |key: &identity::Keypair| {
+        Ok(Behaviour {
+            kademlia: kad::Behaviour::with_config(key.public().to_peer_id(), kad_store, kad_cfg),
+            identify: identify::Behaviour::new(identify_cfg),
+            auto_nat: autonat::Behaviour::new(local_peer_id, autonat_cfg),
+            ping: ping::Behaviour::new(ping::Config::new()),
+            blocked_peers: allow_block_list::Behaviour::default(),
+        })
+    };
+
     if is_ws_transport {
         swarm = tokio_swarm
             .with_websocket(noise::Config::new, yamux::Config::default)
             .await?
-            .with_behaviour(|key| Behaviour {
-                kademlia: kad::Behaviour::with_config(
-                    key.public().to_peer_id(),
-                    kad_store,
-                    kad_cfg,
-                ),
-                identify: identify::Behaviour::new(identify_cfg),
-                auto_nat: autonat::Behaviour::new(local_peer_id, autonat_cfg),
-                ping: ping::Behaviour::new(ping::Config::new()),
-                blocked_peers: allow_block_list::Behaviour::default(),
-            })?
+            .with_behaviour(behaviour)?
             .build()
     } else {
         swarm = tokio_swarm
@@ -99,17 +99,7 @@ pub async fn init(
                 yamux::Config::default,
             )?
             .with_dns()?
-            .with_behaviour(|key| Behaviour {
-                kademlia: kad::Behaviour::with_config(
-                    key.public().to_peer_id(),
-                    kad_store,
-                    kad_cfg,
-                ),
-                identify: identify::Behaviour::new(identify_cfg),
-                auto_nat: autonat::Behaviour::new(local_peer_id, autonat_cfg),
-                ping: ping::Behaviour::new(ping::Config::new()),
-                blocked_peers: allow_block_list::Behaviour::default(),
-            })?
+            .with_behaviour(behaviour)?
             .build()
     }
 
