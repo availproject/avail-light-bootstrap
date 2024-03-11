@@ -1,6 +1,6 @@
 [package]
 name = "avail-light-bootstrap"
-version = "0.0.9"
+version = "0.1.0"
 edition = "2021"
 publish = false
 authors = ["Avail Team"]
@@ -12,7 +12,7 @@ async-trait = "0.1.73"
 clap = { version = "4.4.4", features = ["derive", "cargo"] }
 confy = "0.5.1"
 hex = "0.4.3"
-libp2p = { version = "0.53.1", features = ["tokio", "macros", "kad", "ping", "identify", "autonat", "quic", "dns", "tcp", "noise", "yamux" ] }
+libp2p = { version = "0.53.1", features = ["tokio", "macros", "kad", "ping", "identify", "autonat", "quic", "dns", "tcp", "noise", "yamux", "websocket" ] }
 libp2p-allow-block-list = "0.3.0"
 
 multihash = { version = "0.14.0", default-features = false, features = ["blake3", "sha3"] }

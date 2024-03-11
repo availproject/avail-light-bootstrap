@@ -6,7 +6,7 @@ use clap::Parser;
 use libp2p::{multiaddr::Protocol, Multiaddr};
 use std::{net::Ipv4Addr, time::Duration};
 use tokio::time::{interval_at, Instant};
-use tracing::{error, info, metadata::ParseLevelError, warn, Level, Subscriber};
+use tracing::{debug, error, info, metadata::ParseLevelError, warn, Level, Subscriber};
 use tracing_subscriber::{
     fmt::format::{self},
     EnvFilter, FmtSubscriber,
@@ -75,7 +75,9 @@ async fn run() -> Result<()> {
     let (id_keys, peer_id) = p2p::keypair((&cfg).into())?;
 
     let (network_client, network_event_loop) =
-        p2p::init((&cfg).into(), id_keys).context("Failed to initialize P2P Network Service.")?;
+        p2p::init((&cfg).into(), id_keys, cfg.ws_transport_enable)
+            .await
+            .context("Failed to initialize P2P Network Service.")?;
 
     tokio::spawn(server::run((&cfg).into()));
 
@@ -102,12 +104,9 @@ async fn run() -> Result<()> {
             if let Ok(Some(addr)) = m_network_client.get_multiaddress().await {
                 // set Multiaddress
                 _ = ot_metrics.set_multiaddress(addr.to_string()).await;
-                if let Some(ip) = p2p::extract_ip(addr) {
-                    // set IP
-                    _ = ot_metrics.set_ip(ip).await;
-                }
             }
             if let Ok(counted_peers) = m_network_client.count_dht_entries().await {
+                debug!("Number of peers in the routing table: {}", counted_peers);
                 if let Err(err) = ot_metrics
                     .record(MetricValue::KadRoutingPeerNum(counted_peers))
                     .await
@@ -121,13 +120,9 @@ async fn run() -> Result<()> {
 
     // Listen on all interfaces with TCP
     network_client
-        .start_listening(
-            Multiaddr::empty()
-                .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
-                .with(Protocol::Tcp(cfg.port)),
-        )
+        .start_listening(construct_multiaddress(cfg.ws_transport_enable, cfg.port))
         .await
-        .context("Listening on TCP not to fail.")?;
+        .context("Unable to create P2P listener.")?;
     info!("Started listening for TCP traffic on port: {:?}.", cfg.port);
 
     info!("Bootstrap node starting ...");
@@ -144,4 +139,18 @@ async fn main() -> Result<()> {
         error!("{err}");
         err
     })
+}
+
+fn construct_multiaddress(is_websocket: bool, port: u16) -> Multiaddr {
+    let tcp_multiaddress = Multiaddr::empty()
+        .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
+        .with(Protocol::Tcp(port));
+
+    if is_websocket {
+        return tcp_multiaddress.with(Protocol::Ws(std::borrow::Cow::Borrowed(
+            "avail-light-bootstrap",
+        )));
+    }
+
+    tcp_multiaddress
 }

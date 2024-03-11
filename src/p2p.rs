@@ -2,12 +2,11 @@ use allow_block_list::BlockedPeers;
 use anyhow::{Context, Result};
 use libp2p::{
     autonat, identify,
-    identity::Keypair,
+    identity::{self, Keypair},
     kad::{self, store::MemoryStore, Mode},
-    multiaddr::Protocol,
     noise, ping,
     swarm::NetworkBehaviour,
-    tcp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
+    tcp, yamux, PeerId, StreamProtocol, SwarmBuilder,
 };
 use multihash::Hasher;
 use tokio::sync::mpsc;
@@ -32,7 +31,11 @@ pub struct Behaviour {
     blocked_peers: allow_block_list::Behaviour<BlockedPeers>,
 }
 
-pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> {
+pub async fn init(
+    cfg: LibP2PConfig,
+    id_keys: Keypair,
+    is_ws_transport: bool,
+) -> Result<(Client, EventLoop)> {
     let local_peer_id = PeerId::from(id_keys.public());
     info!(
         "Local Peer ID: {:?}. Public key: {:?}.",
@@ -40,57 +43,65 @@ pub fn init(cfg: LibP2PConfig, id_keys: Keypair) -> Result<(Client, EventLoop)> 
         id_keys.public()
     );
 
+    // create Identify Protocol Config
+    let identify_cfg =
+        identify::Config::new(cfg.identify.protocol_version.clone(), id_keys.public())
+            .with_agent_version(cfg.identify.agent_version.to_string());
+
+    // create AutoNAT Server Config
+    let autonat_cfg = autonat::Config {
+        only_global_ips: cfg.autonat.only_global_ips,
+        throttle_clients_global_max: cfg.autonat.throttle_clients_global_max,
+        throttle_clients_peer_max: cfg.autonat.throttle_clients_peer_max,
+        throttle_clients_period: cfg.autonat.throttle_clients_period,
+        ..Default::default()
+    };
+
     // Use identify protocol_version as Kademlia protocol name
     let kademlia_protocol_name =
         StreamProtocol::try_from_owned(cfg.identify.protocol_version.clone())
             .expect("Invalid Kademlia protocol name");
+    // create new Kademlia Memory Store
+    let kad_store = MemoryStore::new(id_keys.public().to_peer_id());
+    // create Kademlia Config
+    let mut kad_cfg = kad::Config::default();
+    kad_cfg
+        .set_query_timeout(cfg.kademlia.query_timeout)
+        .set_protocol_names(vec![kademlia_protocol_name]);
 
-    let mut swarm = SwarmBuilder::with_existing_identity(id_keys)
-        .with_tokio()
-        .with_tcp(
-            tcp::Config::default().nodelay(true),
-            noise::Config::new,
-            yamux::Config::default,
-        )?
-        .with_quic()
-        .with_dns()?
-        .with_behaviour(|key| {
-            // create new Kademlia Memory Store
-            let kad_store = MemoryStore::new(key.public().to_peer_id());
-            // create Kademlia Config
-            let mut kad_cfg = kad::Config::default();
-            kad_cfg
-                .set_query_timeout(cfg.kademlia.query_timeout)
-                .set_protocol_names(vec![kademlia_protocol_name]);
+    // build the Swarm, connecting the lower transport logic with the
+    // higher layer network behaviour logic
+    let tokio_swarm = SwarmBuilder::with_existing_identity(id_keys.clone()).with_tokio();
 
-            // create Identify Protocol Config
-            let identify_cfg =
-                identify::Config::new(cfg.identify.protocol_version.clone(), key.public())
-                    .with_agent_version(cfg.identify.agent_version.to_string());
+    let mut swarm;
 
-            // create AutoNAT Server Config
-            let autonat_cfg = autonat::Config {
-                only_global_ips: cfg.autonat.only_global_ips,
-                throttle_clients_global_max: cfg.autonat.throttle_clients_global_max,
-                throttle_clients_peer_max: cfg.autonat.throttle_clients_peer_max,
-                throttle_clients_period: cfg.autonat.throttle_clients_period,
-                ..Default::default()
-            };
+    let behaviour = |key: &identity::Keypair| {
+        Ok(Behaviour {
+            kademlia: kad::Behaviour::with_config(key.public().to_peer_id(), kad_store, kad_cfg),
+            identify: identify::Behaviour::new(identify_cfg),
+            auto_nat: autonat::Behaviour::new(local_peer_id, autonat_cfg),
+            ping: ping::Behaviour::new(ping::Config::new()),
+            blocked_peers: allow_block_list::Behaviour::default(),
+        })
+    };
 
-            Behaviour {
-                kademlia: kad::Behaviour::with_config(
-                    key.public().to_peer_id(),
-                    kad_store,
-                    kad_cfg,
-                ),
-                identify: identify::Behaviour::new(identify_cfg),
-                auto_nat: autonat::Behaviour::new(local_peer_id, autonat_cfg),
-                ping: ping::Behaviour::new(ping::Config::new()),
-                blocked_peers: allow_block_list::Behaviour::default(),
-            }
-        })?
-        .with_swarm_config(|c| c.with_idle_connection_timeout(cfg.connection_idle_timeout))
-        .build();
+    if is_ws_transport {
+        swarm = tokio_swarm
+            .with_websocket(noise::Config::new, yamux::Config::default)
+            .await?
+            .with_behaviour(behaviour)?
+            .build()
+    } else {
+        swarm = tokio_swarm
+            .with_tcp(
+                tcp::Config::default().port_reuse(false).nodelay(false),
+                noise::Config::new,
+                yamux::Config::default,
+            )?
+            .with_dns()?
+            .with_behaviour(behaviour)?
+            .build()
+    }
 
     // enable Kademlila Server mode
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
@@ -130,15 +141,4 @@ pub fn keypair(cfg: LibP2PConfig) -> Result<(Keypair, String)> {
 
     let peer_id = PeerId::from(keypair.public()).to_string();
     Ok((keypair, peer_id))
-}
-
-pub fn extract_ip(multiaddress: Multiaddr) -> Option<String> {
-    for protocol in &multiaddress {
-        match protocol {
-            Protocol::Ip4(ip) => return Some(ip.to_string()),
-            Protocol::Ip6(ip) => return Some(ip.to_string()),
-            _ => continue,
-        }
-    }
-    None
 }

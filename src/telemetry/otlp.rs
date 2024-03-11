@@ -9,19 +9,17 @@ pub struct Metrics {
     meter: Meter,
     peer_id: String,
     multiaddress: RwLock<String>,
-    ip: RwLock<String>,
     role: String,
     origin: String,
 }
 
 impl Metrics {
-    async fn attributes(&self) -> [KeyValue; 6] {
+    async fn attributes(&self) -> [KeyValue; 5] {
         [
             KeyValue::new("version", clap::crate_version!()),
             KeyValue::new("role", self.role.clone()),
             KeyValue::new("peerID", self.peer_id.clone()),
             KeyValue::new("multiaddress", self.multiaddress.read().await.clone()),
-            KeyValue::new("ip", self.ip.read().await.clone()),
             KeyValue::new("origin", self.origin.clone()),
         ]
     }
@@ -39,11 +37,6 @@ impl Metrics {
     async fn set_multiaddress(&self, multiaddr: String) {
         let mut m = self.multiaddress.write().await;
         *m = multiaddr;
-    }
-
-    async fn set_ip(&self, ip: String) {
-        let mut i = self.ip.write().await;
-        *i = ip;
     }
 }
 
@@ -63,10 +56,6 @@ impl super::Metrics for Metrics {
 
     async fn set_multiaddress(&self, multiaddr: String) {
         self.set_multiaddress(multiaddr).await;
-    }
-
-    async fn set_ip(&self, ip: String) {
-        self.set_ip(ip).await;
     }
 }
 
@@ -99,7 +88,6 @@ pub fn initialize(
         meter,
         peer_id,
         multiaddress: RwLock::new("".to_string()),
-        ip: RwLock::new("".to_string()),
         role,
         origin,
     })
