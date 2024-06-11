@@ -2,7 +2,7 @@
 
 use crate::{
     telemetry::{MetricValue, Metrics},
-    types::{network_name, LibP2PConfig},
+    types::LibP2PConfig,
 };
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
@@ -95,7 +95,6 @@ async fn run() -> Result<()> {
         peer_id,
         CLIENT_ROLE.into(),
         cfg.origin,
-        network_name(&cfg.genesis_hash),
     )
     .context("Cannot initialize OpenTelemetry service.")?;
 
