@@ -233,7 +233,7 @@ impl EventLoop {
                         self.pending_swarm_events.remove(local_peer_id)
                     {
                         // signal back that we have successfully established a connection,
-                        // give us bach PeerId and Multiaddress
+                        // give us back PeerId and Multiaddress
                         let addr = endpoint.get_remote_address().to_owned();
                         _ = ch.send((peer_id, addr));
                     }

@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+const MINIMUM_SUPPORTED_VERSION: &str = "1.9.2";
 pub const IDENTITY_PROTOCOL: &str = "/avail_kad/id/1.0.0";
 pub const IDENTITY_AGENT_BASE: &str = "avail-light-client";
 pub const IDENTITY_AGENT_CLIENT_TYPE: &str = "rust-client";
@@ -179,6 +180,18 @@ pub struct IdentifyConfig {
     pub agent_version: AgentVersion,
     /// Contains Avail genesis hash
     pub protocol_version: String,
+    pub minimum_supported_version: String,
+}
+
+impl IdentifyConfig {
+    pub fn is_supported(&self, version: &str) -> bool {
+        self.minimum_supported_version
+            .split('.')
+            .map(|s| s.parse().unwrap_or(0))
+            .zip(version.split('.').map(|s| s.parse().unwrap_or(0)))
+            .find(|(old, new)| old != new)
+            .map_or(true, |(old, new)| new > old)
+    }
 }
 
 pub struct AgentVersion {
@@ -234,6 +247,18 @@ impl From<&RuntimeConfig> for IdentifyConfig {
                 id = IDENTITY_PROTOCOL,
                 gen_hash = genhash_short
             ),
+            minimum_supported_version: MINIMUM_SUPPORTED_VERSION.to_string(),
         }
     }
+}
+
+pub fn network_name(genesis_hash: &str) -> String {
+    let network = match genesis_hash {
+        "9d5ea6a5d7631e13028b684a1a0078e3970caa78bd677eaecaf2160304f174fb" => "hex".to_string(),
+        "d3d2f3a3495dc597434a99d7d449ebad6616db45e4e4f178f31cc6fa14378b70" => "turing".to_string(),
+        "DEV" => "local".to_string(),
+        _ => "other".to_string(),
+    };
+
+    format!("{}:{}", network, &genesis_hash[..6])
 }
