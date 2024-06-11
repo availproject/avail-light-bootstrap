@@ -1,7 +1,10 @@
 #![doc = include_str!("../README.md")]
 
-use crate::telemetry::{MetricValue, Metrics};
-use anyhow::{Context, Result};
+use crate::{
+    telemetry::{MetricValue, Metrics},
+    types::{network_name, LibP2PConfig},
+};
+use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use libp2p::{multiaddr::Protocol, Multiaddr};
 use std::{net::Ipv4Addr, time::Duration};
@@ -72,10 +75,16 @@ async fn run() -> Result<()> {
 
     info!("Using config: {:?}", cfg);
 
+    let version = clap::crate_version!();
+    let cfg_libp2p: LibP2PConfig = (&cfg).into();
+    if !cfg_libp2p.identify.is_supported(&version) {
+        return Err(anyhow!("Current avail-bootstrap release version is lower than the minimum supported version. Please update to use latest release."));
+    }
+
     let (id_keys, peer_id) = p2p::keypair((&cfg).into())?;
 
     let (network_client, network_event_loop) =
-        p2p::init((&cfg).into(), id_keys, cfg.ws_transport_enable)
+        p2p::init(cfg_libp2p, id_keys, cfg.ws_transport_enable)
             .await
             .context("Failed to initialize P2P Network Service.")?;
 
@@ -86,6 +95,7 @@ async fn run() -> Result<()> {
         peer_id,
         CLIENT_ROLE.into(),
         cfg.origin,
+        network_name(&cfg.genesis_hash),
     )
     .context("Cannot initialize OpenTelemetry service.")?;
 
