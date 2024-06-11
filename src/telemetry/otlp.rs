@@ -11,18 +11,16 @@ pub struct Metrics {
     multiaddress: RwLock<String>,
     role: String,
     origin: String,
-    network: String,
 }
 
 impl Metrics {
-    async fn attributes(&self) -> [KeyValue; 6] {
+    async fn attributes(&self) -> [KeyValue; 5] {
         [
             KeyValue::new("version", clap::crate_version!()),
             KeyValue::new("role", self.role.clone()),
             KeyValue::new("peerID", self.peer_id.clone()),
             KeyValue::new("multiaddress", self.multiaddress.read().await.clone()),
             KeyValue::new("origin", self.origin.clone()),
-            KeyValue::new("network", self.network.clone()),
         ]
     }
 
@@ -66,7 +64,6 @@ pub fn initialize(
     peer_id: String,
     role: String,
     origin: String,
-    network: String,
 ) -> Result<Metrics, Error> {
     let export_config = ExportConfig {
         endpoint,
@@ -93,6 +90,5 @@ pub fn initialize(
         multiaddress: RwLock::new("".to_string()),
         role,
         origin,
-        network,
     })
 }

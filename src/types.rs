@@ -252,13 +252,3 @@ impl From<&RuntimeConfig> for IdentifyConfig {
     }
 }
 
-pub fn network_name(genesis_hash: &str) -> String {
-    let network = match genesis_hash {
-        "9d5ea6a5d7631e13028b684a1a0078e3970caa78bd677eaecaf2160304f174fb" => "hex".to_string(),
-        "d3d2f3a3495dc597434a99d7d449ebad6616db45e4e4f178f31cc6fa14378b70" => "turing".to_string(),
-        "DEV" => "local".to_string(),
-        _ => "other".to_string(),
-    };
-
-    format!("{}:{}", network, &genesis_hash[..6])
-}
