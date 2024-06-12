@@ -148,6 +148,15 @@ impl EventLoop {
                         return;
                     }
                 };
+                if !incoming_peer_agent_version.is_supported() {
+                    debug!(
+                        "Unsupported release version: {}",
+                        incoming_peer_agent_version.release_version
+                    );
+                    self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
+                    self.swarm.behaviour_mut().blocked_peers.block_peer(peer_id);
+                    return;
+                }
                 if protocol_version == self.identity_data.protocol_version {
                     // Add peer to routing table only if it's in Kademlia server mode
                     if incoming_peer_agent_version.kademlia_mode == "server".to_string() {

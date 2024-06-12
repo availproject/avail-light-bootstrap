@@ -16,6 +16,7 @@ libp2p = { version = "0.53.1", features = ["tokio", "macros", "kad", "ping", "id
 libp2p-allow-block-list = "0.3.0"
 
 multihash = { version = "0.14.0", default-features = false, features = ["blake3", "sha3"] }
+semver = "1.0.23"
 serde = { version = "1.0.163", features = ["derive"] }
 tokio = { version = "1.28.1", features = ["sync", "macros", "rt-multi-thread"] }
 tracing = "0.1.37"
