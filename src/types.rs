@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-const MINIMUM_SUPPORTED_VERSION: &str = "0.1.0";
+const MINIMUM_SUPPORTED_VERSION: &str = "0.1.1";
 pub const IDENTITY_PROTOCOL: &str = "/avail_kad/id/1.0.0";
 pub const IDENTITY_AGENT_BASE: &str = "avail-light-client";
 pub const IDENTITY_AGENT_CLIENT_TYPE: &str = "rust-client";
