@@ -159,7 +159,7 @@ impl EventLoop {
                 }
                 if protocol_version == self.identity_data.protocol_version {
                     // Add peer to routing table only if it's in Kademlia server mode
-                    if incoming_peer_agent_version.kademlia_mode == "server".to_string() {
+                    if incoming_peer_agent_version.kademlia_mode == *"server" {
                         trace!("Adding peer {peer_id} to routing table.");
                         for addr in listen_addrs {
                             self.swarm
