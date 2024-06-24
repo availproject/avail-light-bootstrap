@@ -8,7 +8,6 @@ use std::{
     str::FromStr,
     time::Duration,
 };
-use tracing::debug;
 
 const MINIMUM_SUPPORTED_BOOTSTRAP_VERSION: &str = "0.1.1";
 const MINIMUM_SUPPORTED_LIGHT_CLIENT_VERSION: &str = "1.9.1";

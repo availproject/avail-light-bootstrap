@@ -146,9 +146,10 @@ impl EventLoop {
                         return;
                     }
                 };
-                debug![
+                trace![
                     "Identify agent version: {}. Identify protocol version: {}.",
-                    incoming_peer_agent_version, protocol_version
+                    incoming_peer_agent_version,
+                    protocol_version
                 ];
                 if !incoming_peer_agent_version.is_supported() {
                     debug!(
