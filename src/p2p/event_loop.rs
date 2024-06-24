@@ -15,7 +15,7 @@ use tokio::{
 };
 use tracing::{debug, trace};
 
-use crate::types::{AgentVersion, IdentifyConfig};
+use crate::types::AgentVersion;
 
 use super::{client::Command, Behaviour, BehaviourEvent};
 
@@ -43,7 +43,6 @@ pub struct EventLoop {
     pending_kad_routing: HashMap<PeerId, oneshot::Sender<Result<()>>>,
     pending_swarm_events: HashMap<PeerId, SwarmChannel>,
     bootstrap: BootstrapState,
-    identity_data: IdentifyConfig,
 }
 
 impl EventLoop {
@@ -51,7 +50,6 @@ impl EventLoop {
         swarm: Swarm<Behaviour>,
         command_receiver: mpsc::Receiver<Command>,
         bootstrap_interval: Duration,
-        identity_data: IdentifyConfig,
     ) -> Self {
         Self {
             swarm,
@@ -63,7 +61,6 @@ impl EventLoop {
                 is_startup_done: false,
                 timer: interval_at(Instant::now() + bootstrap_interval, bootstrap_interval),
             },
-            identity_data,
         }
     }
 
@@ -137,10 +134,11 @@ impl EventLoop {
                         listen_addrs,
                         agent_version,
                         protocol_version,
+                        protocols,
                         ..
                     },
             })) => {
-                trace!("Identity Received from: {peer_id:?} on listen address: {listen_addrs:?}");
+                trace!("Identity Received from: {peer_id:?} on listen address: {listen_addrs:?}.");
                 let incoming_peer_agent_version = match AgentVersion::from_str(&agent_version) {
                     Ok(agent) => agent,
                     Err(e) => {
@@ -148,6 +146,10 @@ impl EventLoop {
                         return;
                     }
                 };
+                debug![
+                    "Identify agent version: {}. Identify protocol version: {}.",
+                    incoming_peer_agent_version, protocol_version
+                ];
                 if !incoming_peer_agent_version.is_supported() {
                     debug!(
                         "Unsupported release version: {}",
@@ -156,22 +158,19 @@ impl EventLoop {
                     self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
                     return;
                 }
-                if protocol_version == self.identity_data.protocol_version {
-                    // Add peer to routing table only if it's in Kademlia server mode
-                    if incoming_peer_agent_version.kademlia_mode == *"server" {
-                        trace!("Adding peer {peer_id} to routing table.");
-                        for addr in listen_addrs {
-                            self.swarm
-                                .behaviour_mut()
-                                .kademlia
-                                .add_address(&peer_id, addr);
-                        }
+
+                if protocols.contains(&self.swarm.behaviour_mut().kademlia.protocol_names()[0]) {
+                    debug!("Adding peer {peer_id} to routing table.");
+                    for addr in listen_addrs {
+                        self.swarm
+                            .behaviour_mut()
+                            .kademlia
+                            .add_address(&peer_id, addr);
                     }
                 } else {
                     // Block and remove non-Avail peers
                     debug!("Removing and blocking non-avail peer from routing table. Peer: {peer_id}. Agent: {agent_version}. Protocol: {protocol_version}");
                     self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
-                    self.swarm.behaviour_mut().blocked_peers.block_peer(peer_id);
                 }
             }
             SwarmEvent::Behaviour(BehaviourEvent::AutoNat(autonat_event)) => match autonat_event {
