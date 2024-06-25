@@ -6,7 +6,7 @@ use libp2p::{
     kad::{self, store::MemoryStore, Mode},
     noise, ping,
     swarm::NetworkBehaviour,
-    tcp, yamux, PeerId, StreamProtocol, SwarmBuilder,
+    tcp, yamux, PeerId, SwarmBuilder,
 };
 use multihash::Hasher;
 use tokio::sync::mpsc;
@@ -57,17 +57,13 @@ pub async fn init(
         ..Default::default()
     };
 
-    // Use identify protocol_version as Kademlia protocol name
-    let kademlia_protocol_name =
-        StreamProtocol::try_from_owned(cfg.identify.protocol_version.clone())
-            .expect("Invalid Kademlia protocol name");
     // create new Kademlia Memory Store
     let kad_store = MemoryStore::new(id_keys.public().to_peer_id());
     // create Kademlia Config
     let mut kad_cfg = kad::Config::default();
     kad_cfg
         .set_query_timeout(cfg.kademlia.query_timeout)
-        .set_protocol_names(vec![kademlia_protocol_name]);
+        .set_protocol_names(vec![cfg.kademlia.protocol_name]);
 
     // build the Swarm, connecting the lower transport logic with the
     // higher layer network behaviour logic
@@ -111,12 +107,7 @@ pub async fn init(
 
     Ok((
         Client::new(command_sender),
-        EventLoop::new(
-            swarm,
-            command_receiver,
-            cfg.bootstrap_interval,
-            cfg.identify,
-        ),
+        EventLoop::new(swarm, command_receiver, cfg.bootstrap_interval),
     ))
 }
 

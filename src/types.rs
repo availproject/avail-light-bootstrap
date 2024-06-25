@@ -1,4 +1,5 @@
 use anyhow::Context;
+use libp2p::StreamProtocol;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -8,9 +9,12 @@ use std::{
     time::Duration,
 };
 
-const MINIMUM_SUPPORTED_VERSION: &str = "0.1.1";
+const MINIMUM_SUPPORTED_BOOTSTRAP_VERSION: &str = "0.1.1";
+const MINIMUM_SUPPORTED_LIGHT_CLIENT_VERSION: &str = "1.9.2";
+pub const KADEMLIA_PROTOCOL_BASE: &str = "/avail_kad/id/1.0.0";
 pub const IDENTITY_PROTOCOL: &str = "/avail_kad/id/1.0.0";
 pub const IDENTITY_AGENT_BASE: &str = "avail-light-client";
+pub const IDENTITY_AGENT_ROLE: &str = "bootstrap";
 pub const IDENTITY_AGENT_CLIENT_TYPE: &str = "rust-client";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -80,7 +84,7 @@ impl From<&RuntimeConfig> for LibP2PConfig {
         Self {
             port: rtcfg.port,
             autonat: rtcfg.into(),
-            identify: rtcfg.into(),
+            identify: IdentifyConfig::new(),
             kademlia: rtcfg.into(),
             secret_key: rtcfg.secret_key.clone(),
             bootstrap_interval: Duration::from_secs(rtcfg.bootstrap_period),
@@ -92,12 +96,23 @@ impl From<&RuntimeConfig> for LibP2PConfig {
 /// Kademlia configuration (see [RuntimeConfig] for details)
 pub struct KademliaConfig {
     pub query_timeout: Duration,
+    pub protocol_name: StreamProtocol,
 }
 
 impl From<&RuntimeConfig> for KademliaConfig {
     fn from(val: &RuntimeConfig) -> Self {
+        let mut genhash_short = val.genesis_hash.trim_start_matches("0x").to_string();
+        genhash_short.truncate(6);
+
+        let protocol_name = libp2p::StreamProtocol::try_from_owned(format!(
+            "{id}-{gen_hash}",
+            id = KADEMLIA_PROTOCOL_BASE,
+            gen_hash = genhash_short
+        ))
+        .expect("Invalid Kademlia protocol name");
         KademliaConfig {
             query_timeout: Duration::from_secs(val.kad_query_timeout.into()),
+            protocol_name,
         }
     }
 }
@@ -185,9 +200,8 @@ pub struct IdentifyConfig {
 
 pub struct AgentVersion {
     pub base_version: String,
+    pub role: String,
     pub client_type: String,
-    // Kademlia client or server mode
-    pub kademlia_mode: String,
     pub release_version: String,
 }
 
@@ -196,7 +210,7 @@ impl fmt::Display for AgentVersion {
         write!(
             f,
             "{}/{}/{}/{}",
-            self.base_version, self.release_version, self.client_type, self.kademlia_mode
+            self.base_version, self.role, self.release_version, self.client_type,
         )
     }
 }
@@ -212,45 +226,41 @@ impl FromStr for AgentVersion {
 
         Ok(AgentVersion {
             base_version: parts[0].to_string(),
-            release_version: parts[1].to_string(),
-            client_type: parts[2].to_string(),
-            kademlia_mode: parts[3].to_string(),
+            role: parts[1].to_string(),
+            release_version: parts[2].to_string(),
+            client_type: parts[3].to_string(),
         })
     }
 }
 
 impl AgentVersion {
     pub fn is_supported(&self) -> bool {
-        match (
-            Version::parse(&self.release_version),
-            Version::parse(MINIMUM_SUPPORTED_VERSION),
-        ) {
-            (Ok(release_version), Ok(minimum_version)) => release_version >= minimum_version,
-            (_, _) => false,
-        }
+        let minimum_version = if self.role == "bootstrap" {
+            MINIMUM_SUPPORTED_BOOTSTRAP_VERSION
+        } else {
+            MINIMUM_SUPPORTED_LIGHT_CLIENT_VERSION
+        };
+
+        Version::parse(&self.release_version)
+            .and_then(|release_version| {
+                Version::parse(minimum_version).map(|min_version| release_version >= min_version)
+            })
+            .unwrap_or(false)
     }
 }
 
-impl From<&RuntimeConfig> for IdentifyConfig {
-    fn from(val: &RuntimeConfig) -> Self {
-        let mut genhash_short = val.genesis_hash.trim_start_matches("0x").to_string();
-        genhash_short.truncate(6);
-
+impl IdentifyConfig {
+    fn new() -> Self {
         let agent_version = AgentVersion {
             base_version: IDENTITY_AGENT_BASE.to_string(),
+            role: IDENTITY_AGENT_ROLE.to_string(),
             release_version: clap::crate_version!().to_string(),
             client_type: IDENTITY_AGENT_CLIENT_TYPE.to_string(),
-            // Bootstrap should only be in server mode
-            kademlia_mode: "server".to_string(),
         };
 
         Self {
             agent_version,
-            protocol_version: format!(
-                "{id}-{gen_hash}",
-                id = IDENTITY_PROTOCOL,
-                gen_hash = genhash_short
-            ),
+            protocol_version: IDENTITY_PROTOCOL.to_owned(),
         }
     }
 }
