@@ -213,21 +213,14 @@ impl EventLoop {
                 ..
             } => {
                 trace!("Connection closed. PeerID: {peer_id:?}. Address: {:?}. Num established: {num_established:?}. Cause: {cause:?}.", endpoint.get_remote_address());
-                if let Some(ConnectionError::IO(_)) = cause {
-                    // remove peers with failed connections
-                    self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
-                }
             }
 
             SwarmEvent::OutgoingConnectionError {
+                connection_id,
                 peer_id: Some(peer_id),
-                ..
+                error,
             } => {
-                // which ever error that was,
-                // all the currently implemented ones are pretty critical
-                // remove error producing peer from further dialing
-                trace!("Error produced by peer with PeerId: {peer_id:?}");
-                self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
+                trace!("Outgoing connection error. Connection id: {connection_id}. Peer: {peer_id}. Error: {error}.");
             }
             SwarmEvent::ConnectionEstablished {
                 endpoint, peer_id, ..
